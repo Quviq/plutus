@@ -178,6 +178,7 @@ library
     PlutusIR.TypeCheck.Internal
     PlutusPrelude
     Prettyprinter.Custom
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     Universe
     UntypedPlutusCore
     UntypedPlutusCore.Check.Scope
