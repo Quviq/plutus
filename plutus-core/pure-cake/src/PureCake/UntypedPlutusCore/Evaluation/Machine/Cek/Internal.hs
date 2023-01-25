@@ -57,24 +57,24 @@ where
 import ErrorCode (ErrorCode (..), HasErrorCode (..))
 import PlutusPrelude (Generic, NFData, Typeable, coerce, ($>))
 
-import UntypedPlutusCore.Core (Term (..), UniOf)
+import PureCake.UntypedPlutusCore.Core (Term (..), UniOf)
 
 
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
-import PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasConstant (..), MakeKnownM (..), lookupBuiltin,
-                           throwKnownTypeErrorWithCause)
-import PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
-import PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), ExBudgetBuiltin (..), ExRestrictingBudget (..))
-import PlutusCore.Evaluation.Machine.Exception (ErrorWithCause (..), EvaluationError (..), EvaluationException,
-                                                MachineError (..), _MachineError, extractEvaluationResult,
-                                                throwNotAConstant, throwingWithCause, throwing_)
-import PlutusCore.Evaluation.Machine.ExMemory (ExMemoryUsage (..))
-import PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
-import PlutusCore.Evaluation.Result (AsEvaluationFailure (..), EvaluationResult (..), _EvaluationFailureVia)
-import PlutusCore.Pretty (PrettyBy (..), PrettyConfigPlc, PrettyConst)
+import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasConstant (..), MakeKnownM (..),
+                                    lookupBuiltin, throwKnownTypeErrorWithCause)
+import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
+import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), ExBudgetBuiltin (..), ExRestrictingBudget (..))
+import PureCake.PlutusCore.Evaluation.Machine.Exception (ErrorWithCause (..), EvaluationError (..), EvaluationException,
+                                                         MachineError (..), _MachineError, extractEvaluationResult,
+                                                         throwNotAConstant, throwingWithCause, throwing_)
+import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExMemoryUsage (..))
+import PureCake.PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
+import PureCake.PlutusCore.Evaluation.Result (AsEvaluationFailure (..), EvaluationResult (..), _EvaluationFailureVia)
+import PureCake.PlutusCore.Pretty (PrettyBy (..), PrettyConfigPlc, PrettyConst)
 
-import UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
+import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
 
 import Control.Lens.Review (AReview)
 import Control.Monad (unless, void)

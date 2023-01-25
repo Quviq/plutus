@@ -178,6 +178,64 @@ library
     PlutusIR.TypeCheck.Internal
     PlutusPrelude
     Prettyprinter.Custom
+    PureCake.PlutusCore.Builtin
+    PureCake.PlutusCore.Builtin.Elaborate
+    PureCake.PlutusCore.Builtin.Emitter
+    PureCake.PlutusCore.Builtin.HasConstant
+    PureCake.PlutusCore.Builtin.KnownKind
+    PureCake.PlutusCore.Builtin.KnownType
+    PureCake.PlutusCore.Builtin.KnownTypeAst
+    PureCake.PlutusCore.Builtin.Meaning
+    PureCake.PlutusCore.Builtin.Polymorphism
+    PureCake.PlutusCore.Builtin.Runtime
+    PureCake.PlutusCore.Builtin.TestKnown
+    PureCake.PlutusCore.Builtin.TypeScheme
+    PureCake.PlutusCore.Check.Scoping
+    PureCake.PlutusCore.Core
+    PureCake.PlutusCore.Core.Instance
+    PureCake.PlutusCore.Core.Instance.Eq
+    PureCake.PlutusCore.Core.Instance.Pretty
+    PureCake.PlutusCore.Core.Instance.Pretty.Classic
+    PureCake.PlutusCore.Core.Instance.Pretty.Common
+    PureCake.PlutusCore.Core.Instance.Pretty.Default
+    PureCake.PlutusCore.Core.Instance.Pretty.Plc
+    PureCake.PlutusCore.Core.Instance.Pretty.Readable
+    PureCake.PlutusCore.Core.Instance.Recursive
+    PureCake.PlutusCore.Core.Instance.Scoping
+    PureCake.PlutusCore.Core.Plated
+    PureCake.PlutusCore.Core.Type
+    PureCake.PlutusCore.DeBruijn
+    PureCake.PlutusCore.DeBruijn.Internal
+    PureCake.PlutusCore.Eq
+    PureCake.PlutusCore.Evaluation.Machine.ExBudget
+    PureCake.PlutusCore.Evaluation.Machine.Exception
+    PureCake.PlutusCore.Evaluation.Machine.ExMemory
+    PureCake.PlutusCore.Evaluation.Machine.MachineParameters
+    PureCake.PlutusCore.Evaluation.Result
+    PureCake.PlutusCore.Flat
+    PureCake.PlutusCore.MkPlc
+    PureCake.PlutusCore.Name
+    PureCake.PlutusCore.Pretty
+    PureCake.PlutusCore.Pretty.Classic
+    PureCake.PlutusCore.Pretty.Default
+    PureCake.PlutusCore.Pretty.Extra
+    PureCake.PlutusCore.Pretty.Plc
+    PureCake.PlutusCore.Pretty.Readable
+    PureCake.PlutusCore.Quote
+    PureCake.PlutusCore.Rename.Monad
+    PureCake.UntypedPlutusCore.Core
+    PureCake.UntypedPlutusCore.Core.Instance
+    PureCake.UntypedPlutusCore.Core.Instance.Eq
+    PureCake.UntypedPlutusCore.Core.Instance.Flat
+    PureCake.UntypedPlutusCore.Core.Instance.Pretty
+    PureCake.UntypedPlutusCore.Core.Instance.Pretty.Classic
+    PureCake.UntypedPlutusCore.Core.Instance.Pretty.Default
+    PureCake.UntypedPlutusCore.Core.Instance.Pretty.Plc
+    PureCake.UntypedPlutusCore.Core.Instance.Pretty.Readable
+    PureCake.UntypedPlutusCore.Core.Instance.Recursive
+    PureCake.UntypedPlutusCore.Core.Plated
+    PureCake.UntypedPlutusCore.Core.Type
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     Universe
     UntypedPlutusCore
@@ -195,7 +253,7 @@ library
 
   hs-source-dirs:
     plutus-core/src plutus-core/stdlib plutus-core/examples
-    plutus-ir/src untyped-plutus-core/src prelude common
+    plutus-ir/src untyped-plutus-core/src prelude common pure-cake/src
 
   other-modules:
     Data.Aeson.Flatten
