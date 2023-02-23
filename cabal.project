@@ -46,7 +46,7 @@ benchmarks: true
 test-show-details: direct
 
 package plutus-core
-  flags: +with-inline-r
+  flags: -with-inline-r
 
 -- See https://github.com/input-output-hk/nothunks/issues/17
 package nothunks

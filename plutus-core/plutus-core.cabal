@@ -178,6 +178,7 @@ library
     PlutusIR.TypeCheck.Internal
     PlutusPrelude
     Prettyprinter.Custom
+    PureCake.Crypto
     PureCake.PlutusCore.Builtin
     PureCake.PlutusCore.Builtin.Elaborate
     PureCake.PlutusCore.Builtin.Emitter
@@ -206,8 +207,16 @@ library
     PureCake.PlutusCore.Core.Type
     PureCake.PlutusCore.DeBruijn
     PureCake.PlutusCore.DeBruijn.Internal
+    PureCake.PlutusCore.Default
+    PureCake.PlutusCore.Default.Builtins
+    PureCake.PlutusCore.Default.Universe
     PureCake.PlutusCore.Eq
+    PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
+    PureCake.PlutusCore.Evaluation.Machine.CostingFun.Core
+    PureCake.PlutusCore.Evaluation.Machine.CostingFun.JSON
+    PureCake.PlutusCore.Evaluation.Machine.CostModelInterface
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
+    PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
     PureCake.PlutusCore.Evaluation.Machine.Exception
     PureCake.PlutusCore.Evaluation.Machine.ExMemory
     PureCake.PlutusCore.Evaluation.Machine.MachineParameters
@@ -223,6 +232,8 @@ library
     PureCake.PlutusCore.Pretty.Readable
     PureCake.PlutusCore.Quote
     PureCake.PlutusCore.Rename.Monad
+    PureCake.TestHarness
+    PureCake.ToPureCake
     PureCake.UntypedPlutusCore.Core
     PureCake.UntypedPlutusCore.Core.Instance
     PureCake.UntypedPlutusCore.Core.Instance.Eq
@@ -236,6 +247,7 @@ library
     PureCake.UntypedPlutusCore.Core.Plated
     PureCake.UntypedPlutusCore.Core.Type
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     Universe
     UntypedPlutusCore
