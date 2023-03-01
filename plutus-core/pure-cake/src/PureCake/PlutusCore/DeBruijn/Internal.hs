@@ -44,7 +44,6 @@ module PureCake.PlutusCore.DeBruijn.Internal
     ) where
 
 import PureCake.PlutusCore.Name
-import PureCake.PlutusCore.Pretty
 import PureCake.PlutusCore.Quote
 
 import Control.Exception
@@ -58,7 +57,6 @@ import Data.Bimap qualified as BM
 import Data.Map qualified as M
 import Data.Text qualified as T
 import Data.Word
-import Prettyprinter
 
 import Control.DeepSeq (NFData)
 import Data.Coerce
@@ -68,7 +66,7 @@ import GHC.Generics
 -- | A relative index used for de Bruijn identifiers.
 newtype Index = Index Word64
     deriving stock (Generic)
-    deriving newtype (Show, Num, Enum, Real, Integral, Eq, Ord, Pretty, NFData)
+    deriving newtype (Show, Num, Enum, Real, Integral, Eq, Ord, NFData)
 
 -- | The LamAbs index (for debruijn indices) and the starting level of DeBruijn monad
 deBruijnInitIndex :: Index
@@ -82,7 +80,7 @@ data NamedDeBruijn = NamedDeBruijn { ndbnString :: !T.Text, ndbnIndex :: !Index 
 
 -- | A wrapper around nameddebruijn that must hold the invariant of name=`fakeName`.
 newtype FakeNamedDeBruijn = FakeNamedDeBruijn NamedDeBruijn
-    deriving newtype (Show, Eq, NFData, PrettyBy config)
+    deriving newtype (Show, Eq, NFData)
 
 toFake :: DeBruijn -> FakeNamedDeBruijn
 toFake (DeBruijn ix) = FakeNamedDeBruijn $ NamedDeBruijn fakeName ix
@@ -106,7 +104,7 @@ newtype DeBruijn = DeBruijn { dbnIndex :: Index }
 -- | A type name as a de Bruijn index.
 newtype NamedTyDeBruijn = NamedTyDeBruijn NamedDeBruijn
     deriving stock (Show, Generic)
-    deriving newtype (PrettyBy config, NFData)
+    deriving newtype (NFData)
     -- ignoring actual names and only relying solely on debruijn indices
     deriving Eq via NamedDeBruijn
 instance Wrapped NamedTyDeBruijn
@@ -114,21 +112,9 @@ instance Wrapped NamedTyDeBruijn
 -- | A type name as a de Bruijn index, without the name string.
 newtype TyDeBruijn = TyDeBruijn DeBruijn
     deriving stock (Show, Generic)
-    deriving newtype (NFData, PrettyBy config)
+    deriving newtype (NFData)
     deriving Eq via DeBruijn
 instance Wrapped TyDeBruijn
-
-instance HasPrettyConfigName config => PrettyBy config NamedDeBruijn where
-    prettyBy config (NamedDeBruijn txt (Index ix))
-        | showsUnique = pretty txt <> "_i" <> pretty ix
-        | otherwise   = pretty txt
-        where PrettyConfigName showsUnique = toPrettyConfigName config
-
-instance HasPrettyConfigName config => PrettyBy config DeBruijn where
-    prettyBy config (DeBruijn (Index ix))
-        | showsUnique = "i" <> pretty ix
-        | otherwise   = ""
-        where PrettyConfigName showsUnique = toPrettyConfigName config
 
 class HasIndex a where
     index :: Lens' a Index
@@ -209,9 +195,6 @@ data FreeVariableError
     deriving stock (Show, Eq, Ord, Generic)
     deriving anyclass (Exception, NFData)
 
-instance Pretty FreeVariableError where
-    pretty (FreeUnique u) = "Free unique:" <+> pretty u
-    pretty (FreeIndex i)  = "Free index:" <+> pretty i
 makeClassyPrisms ''FreeVariableError
 
 instance HasErrorCode FreeVariableError where

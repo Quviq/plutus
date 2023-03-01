@@ -34,9 +34,7 @@ module PureCake.PlutusCore.Evaluation.Machine.Exception
 
 import PlutusPrelude
 
-import PureCake.PlutusCore.Core.Instance.Pretty.Common ()
 import PureCake.PlutusCore.Evaluation.Result
-import PureCake.PlutusCore.Pretty
 
 import Control.Lens
 import Control.Monad.Error.Lens (throwing, throwing_)
@@ -45,7 +43,6 @@ import Data.Either.Extras
 import Data.String (IsString)
 import Data.Text (Text)
 import ErrorCode
-import Prettyprinter
 
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
@@ -114,7 +111,7 @@ instance AsEvaluationFailure user => AsEvaluationFailure (EvaluationError user i
 data ErrorWithCause err cause = ErrorWithCause
     { _ewcError :: err
     , _ewcCause :: Maybe cause
-    } deriving stock (Eq, Functor, Foldable, Traversable, Generic)
+    } deriving stock (Eq, Functor, Foldable, Traversable, Generic, Show)
     deriving anyclass (NFData)
 
 instance Bifunctor ErrorWithCause where
@@ -122,9 +119,6 @@ instance Bifunctor ErrorWithCause where
 
 instance AsEvaluationFailure err => AsEvaluationFailure (ErrorWithCause err cause) where
     _EvaluationFailure = iso _ewcError (flip ErrorWithCause Nothing) . _EvaluationFailure
-
-instance (Pretty err, Pretty cause) => Pretty (ErrorWithCause err cause) where
-    pretty (ErrorWithCause e c) = pretty e <+> "caused by:" <+> pretty c
 
 type EvaluationException user internal =
     ErrorWithCause (EvaluationError user internal)
@@ -172,63 +166,13 @@ extractEvaluationResult (Left (ErrorWithCause evalErr cause)) = case evalErr of
     UserEvaluationError _       -> Right $ EvaluationFailure
 
 unsafeExtractEvaluationResult
-    :: (PrettyPlc internal, PrettyPlc term, Typeable internal, Typeable term)
+    :: (Show (ErrorWithCause internal term), Typeable internal, Typeable term)
     => Either (EvaluationException user internal term) a
     -> EvaluationResult a
 unsafeExtractEvaluationResult = unsafeFromEither . extractEvaluationResult
 
-instance Pretty UnliftingError where
-    pretty (UnliftingErrorE err) = fold
-        [ "Could not unlift a value:", hardline
-        , pretty err
-        ]
-
-instance (HasPrettyDefaults config ~ 'True, Pretty fun) =>
-            PrettyBy config (MachineError fun) where
-    prettyBy _      NonPolymorphicInstantiationMachineError =
-        "Attempted to instantiate a non-polymorphic term."
-    prettyBy _      NonWrapUnwrappedMachineError          =
-        "Cannot unwrap a not wrapped term."
-    prettyBy _      NonFunctionalApplicationMachineError   =
-        "Attempted to apply a non-function."
-    prettyBy _      OpenTermEvaluatedMachineError         =
-        "Cannot evaluate an open term"
-    prettyBy _      BuiltinTermArgumentExpectedMachineError =
-        "A builtin expected a term argument, but something else was received"
-    prettyBy _      UnexpectedBuiltinTermArgumentMachineError =
-        "A builtin received a term argument when something else was expected"
-    prettyBy _      (UnliftingMachineError unliftingError)  =
-        pretty unliftingError
-    prettyBy _      (UnknownBuiltin fun)                  =
-        "Encountered an unknown built-in function:" <+> pretty fun
-
-instance
-        ( HasPrettyDefaults config ~ 'True
-        , PrettyBy config internal, Pretty user
-        ) => PrettyBy config (EvaluationError user internal) where
-    prettyBy config (InternalEvaluationError err) = fold
-        [ "error:", hardline
-        , prettyBy config err
-        ]
-    prettyBy _      (UserEvaluationError err) = fold
-        [ "User error:", hardline
-        , pretty err
-        ]
-
-instance (PrettyBy config cause, PrettyBy config err) =>
-            PrettyBy config (ErrorWithCause err cause) where
-    prettyBy config (ErrorWithCause err mayCause) =
-        "An error has occurred: " <+> prettyBy config err <>
-            case mayCause of
-                Nothing    -> mempty
-                Just cause -> hardline <> "Caused by:" <+> prettyBy config cause
-
-instance (PrettyPlc cause, PrettyPlc err) =>
-            Show (ErrorWithCause err cause) where
-    show = render . prettyPlcReadableDebug
-
 deriving anyclass instance
-    (PrettyPlc cause, PrettyPlc err, Typeable cause, Typeable err) => Exception (ErrorWithCause err cause)
+    (Show (ErrorWithCause err cause), Typeable cause, Typeable err) => Exception (ErrorWithCause err cause)
 
 instance HasErrorCode UnliftingError where
       errorCode        UnliftingErrorE {}        = ErrorCode 30

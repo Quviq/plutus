@@ -28,15 +28,12 @@ import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
 
-countingStToCake :: PLC.CountingSt -> Cake.CountingSt
-countingStToCake (PLC.CountingSt exBudget) = Cake.CountingSt (exBudgetToCake exBudget)
-
 restrictingStToCake :: PLC.RestrictingSt -> Cake.RestrictingSt
 restrictingStToCake (PLC.RestrictingSt exBudget) =
   Cake.RestrictingSt (exRestrictingBudgetToCake exBudget)
 
 cekExceptionToCake :: PLC.CekEvaluationException PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun
-                   -> Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun
+                   -> Cake.CekEvaluationException
 cekExceptionToCake (PLC.ErrorWithCause e mc) =
   Cake.ErrorWithCause (evaluationErrorToCake e) (termToCake <$> mc)
 

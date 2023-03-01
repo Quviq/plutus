@@ -74,10 +74,10 @@ defaultCekCostModel = CostModel defaultCekMachineCosts defaultBuiltinCostModel
 defaultCostModelParams :: Maybe CostModelParams
 defaultCostModelParams = extractCostModelParams defaultCekCostModel
 
-defaultCekParameters :: Typeable ann => MachineParameters CekMachineCosts CekValue DefaultUni DefaultFun ann
+defaultCekParameters :: MachineParameters CekMachineCosts CekValue
 defaultCekParameters = mkMachineParameters def defaultCekCostModel
 
-unitCekParameters :: Typeable ann => MachineParameters CekMachineCosts CekValue DefaultUni DefaultFun ann
+unitCekParameters :: MachineParameters CekMachineCosts CekValue
 unitCekParameters =
     mkMachineParameters def $
         CostModel unitCekMachineCosts unitCostBuiltinCostModel

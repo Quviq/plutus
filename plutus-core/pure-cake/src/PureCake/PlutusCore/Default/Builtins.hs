@@ -23,7 +23,6 @@ import PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory
 import PureCake.PlutusCore.Evaluation.Result
-import PureCake.PlutusCore.Pretty
 
 import Codec.Serialise (serialise)
 import Data.ByteString qualified as BS
@@ -36,7 +35,6 @@ import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Flat hiding (from, to)
 import Flat.Decoder
 import Flat.Encoder as Flat
-import Prettyprinter (viaShow)
 import PureCake.Crypto (verifyEcdsaSecp256k1Signature, verifyEd25519Signature_V1, verifyEd25519Signature_V2,
                         verifySchnorrSecp256k1Signature)
 
@@ -120,19 +118,7 @@ data DefaultFun
     | MkNilData
     | MkNilPairData
     deriving stock (Show, Eq, Ord, Enum, Bounded, Generic, Ix)
-    deriving anyclass (NFData, Hashable, PrettyBy PrettyConfigPlc)
-
-{- Note [Textual representation of names of built-in functions]. The plc parser
- parses builtin names by looking at an enumeration of all of the built-in
- functions and checking whether the given name matches the pretty-printed name,
- obtained using the instance below.  Thus the definitive forms of the names of
- the built-in functions are obtained by applying the function below to the
- constructor names above. -}
-instance Pretty DefaultFun where
-    pretty fun = pretty $ case show fun of
-        ""    -> ""  -- It's really weird to have a function's name displayed as an empty string,
-                     -- but if it's what the 'Show' instance does, the user has asked for it.
-        c : s -> toLower c : s
+    deriving anyclass (NFData, Hashable)
 
 instance ExMemoryUsage DefaultFun where
     memoryUsage _ = 1
@@ -1367,9 +1353,6 @@ instance uni ~ DefaultUni => ToBuiltinMeaning uni DefaultFun where
 
 instance Default (BuiltinVersion DefaultFun) where
     def = DefaultFunV2
-
-instance Pretty (BuiltinVersion DefaultFun) where
-    pretty = viaShow
 
 -- It's set deliberately to give us "extra room" in the binary format to add things without running
 -- out of space for tags (expanding the space would change the binary format for people who're

@@ -9,16 +9,9 @@
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
     ( ExBudgetMode (..)
-    , CountingSt (..)
-    , CekExTally (..)
-    , TallyingSt (..)
     , RestrictingSt (..)
     , Hashable
-    , counting
-    , enormousBudget
-    , tallying
     , restricting
-    , restrictingEnormous
     )
 where
 
@@ -40,79 +33,13 @@ import Data.Primitive.PrimArray
 import Data.SatInt
 import Data.Semigroup.Generic
 import Data.STRef
-import Prettyprinter
-import Text.PrettyBy (IgnorePrettyConfig (..))
-
--- | Construct an 'ExBudgetMode' out of a function returning a value of the budgeting state type.
--- The value then gets added to the current state via @(<>)@.
-monoidalBudgeting
-    :: Monoid cost => (ExBudgetCategory fun -> ExBudget -> cost) -> ExBudgetMode cost uni fun
-monoidalBudgeting toCost = ExBudgetMode $ do
-    costRef <- newSTRef mempty
-    budgetRef <- newSTRef mempty
-    let spend key budgetToSpend = CekM $ do
-            modifySTRef' costRef (<> toCost key budgetToSpend)
-            modifySTRef' budgetRef (<> budgetToSpend)
-        spender = CekBudgetSpender spend
-        cumulative = readSTRef budgetRef
-        final = readSTRef costRef
-    pure $ ExBudgetInfo spender final cumulative
-
--- | For calculating the cost of execution by counting up using the 'Monoid' instance of 'ExBudget'.
-newtype CountingSt = CountingSt ExBudget
-    deriving stock (Eq, Show)
-    deriving newtype (Semigroup, Monoid, PrettyBy config, NFData)
-
-instance Pretty CountingSt where
-    pretty (CountingSt budget) = parens $ "required budget:" <+> pretty budget <> line
-
--- | For calculating the cost of execution.
-counting :: ExBudgetMode CountingSt uni fun
-counting = monoidalBudgeting $ const CountingSt
-
--- | For a detailed report on what costs how much + the same overall budget that 'Counting' gives.
--- The (derived) 'Monoid' instance of 'CekExTally' is the main piece of the machinery.
-newtype CekExTally fun = CekExTally (MonoidalHashMap (ExBudgetCategory fun) ExBudget)
-    deriving stock (Eq, Generic, Show)
-    deriving (Semigroup, Monoid) via (GenericSemigroupMonoid (CekExTally fun))
-    deriving anyclass (NFData)
-    deriving (PrettyBy config) via (IgnorePrettyConfig (CekExTally fun))
-
-instance (Show fun, Ord fun) => Pretty (CekExTally fun) where
-    pretty (CekExTally m) =
-        let om = Map.fromList $ HashMap.toList m
-        in parens $ fold (["{ "] <> (intersperse (line <> "| ") $ fmap group $
-          ifoldMap (\k v -> [(pretty k <+> "causes" <+> pretty v)]) om) <> ["}"])
-
-data TallyingSt fun = TallyingSt (CekExTally fun) ExBudget
-    deriving stock (Eq, Show, Generic)
-    deriving (Semigroup, Monoid) via (GenericSemigroupMonoid (TallyingSt fun))
-    deriving anyclass (NFData)
-    deriving (PrettyBy config) via (IgnorePrettyConfig (TallyingSt fun))
-
-instance (Show fun, Ord fun) => Pretty (TallyingSt fun) where
-    pretty (TallyingSt tally budget) = parens $ fold
-        [ "{ tally: ", pretty tally, line
-        , "| budget: ", pretty budget, line
-        , "}"
-        ]
-
--- | For a detailed report on what costs how much + the same overall budget that 'Counting' gives.
-tallying :: (Hashable fun) => ExBudgetMode (TallyingSt fun) uni fun
-tallying =
-    monoidalBudgeting $ \key budgetToSpend ->
-        TallyingSt (CekExTally $ singleton key budgetToSpend) budgetToSpend
 
 newtype RestrictingSt = RestrictingSt ExRestrictingBudget
     deriving stock (Eq, Show)
     deriving newtype (Semigroup, Monoid, NFData)
-    deriving anyclass (PrettyBy config)
-
-instance Pretty RestrictingSt where
-    pretty (RestrictingSt budget) = parens $ "final budget:" <+> pretty budget <> line
 
 -- | For execution, to avoid overruns.
-restricting :: forall uni fun . (PrettyUni uni fun) => ExRestrictingBudget -> ExBudgetMode RestrictingSt uni fun
+restricting :: ExRestrictingBudget -> ExBudgetMode RestrictingSt
 restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMode $ do
     -- We keep the counters in a PrimArray. This is better than an STRef since it stores its contents unboxed.
     --
@@ -151,7 +78,3 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
             pure $ initB `minusExBudget` r
         final = RestrictingSt . ExRestrictingBudget <$> remaining
     pure $ ExBudgetInfo spender final cumulative
-
--- | 'restricting' instantiated at 'enormousBudget'.
-restrictingEnormous :: (PrettyUni uni fun) => ExBudgetMode RestrictingSt uni fun
-restrictingEnormous = restricting enormousBudget

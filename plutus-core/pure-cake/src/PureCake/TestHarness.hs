@@ -40,14 +40,14 @@ import PlutusCore.Compiler qualified as PLC
 import PlutusIR.Compiler
 import UntypedPlutusCore.DeBruijn qualified as PLC
 
-noEmitter :: Cake.EmitterMode uni fun
+noEmitter :: Cake.EmitterMode
 noEmitter = Cake.EmitterMode $ \_ -> pure $ Cake.CekEmitterInfo (\_ -> pure ()) (pure mempty)
 
-logEmitter :: Cake.EmitterMode uni fun
+logEmitter :: Cake.EmitterMode
 logEmitter = error "TODO"
 
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-       -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
+       -> ( Either Cake.CekEvaluationException
                    (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
           , Cake.RestrictingSt
           , [Text] )
@@ -62,7 +62,7 @@ runPLC tm =
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
+        -> ( Either Cake.CekEvaluationException
                     (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
            , Cake.RestrictingSt
            , [Text] )

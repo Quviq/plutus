@@ -18,9 +18,6 @@
 
 module PureCake.PlutusCore.Core.Type
     ( Kind (..)
-    , toPatFuncKind
-    , fromPatFuncKind
-    , argsFunKind
     , Type (..)
     , Term (..)
     , Version (..)
@@ -33,23 +30,6 @@ module PureCake.PlutusCore.Core.Type
     , tyDeclVar
     , HasUniques
     , Binder (..)
-    , defaultVersion
-    -- * Helper functions
-    , termAnn
-    , typeAnn
-    , mapFun
-    , tyVarDeclAnn
-    , tyVarDeclName
-    , tyVarDeclKind
-    , varDeclAnn
-    , varDeclName
-    , varDeclType
-    , tyDeclAnn
-    , tyDeclType
-    , tyDeclKind
-    , progAnn
-    , progVer
-    , progTerm
     )
 where
 
@@ -71,25 +51,7 @@ data Kind ann
     deriving stock (Eq, Show, Functor, Generic, Lift)
     deriving anyclass (NFData, Hashable)
 
--- | The kind of a pattern functor (the first 'Type' argument of 'TyIFix') at a given kind (of the
--- second 'Type' argument of 'TyIFix'):
---
--- > toPatFuncKind k = (k -> *) -> k -> *
-toPatFuncKind :: Kind () -> Kind ()
-toPatFuncKind k = KindArrow () (KindArrow () k (Type ())) (KindArrow () k (Type ()))
-
-fromPatFuncKind :: Kind () -> Maybe (Kind ())
-fromPatFuncKind (KindArrow () (KindArrow () k1 (Type ())) (KindArrow () k2 (Type ())))
-    | k1 == k2 = Just k1
-fromPatFuncKind _ = Nothing
-
--- | Extract all @a_i@ from @a_0 -> a_1 -> ... -> r@.
-argsFunKind :: Kind ann -> [Kind ann]
-argsFunKind Type{}            = []
-argsFunKind (KindArrow _ k l) = k : argsFunKind l
-
 -- | A 'Type' assigned to expressions.
-type Type :: GHC.Type -> (GHC.Type -> GHC.Type) -> GHC.Type -> GHC.Type
 data Type tyname uni ann
     = TyVar ann tyname
     | TyFun ann (Type tyname uni ann) (Type tyname uni ann)
@@ -154,7 +116,6 @@ data Program tyname name uni fun ann = Program
     }
     deriving stock (Show, Functor, Generic)
     deriving anyclass (NFData)
-makeLenses ''Program
 
 -- | Extract the universe from a type.
 type family UniOf a :: GHC.Type -> GHC.Type
@@ -167,7 +128,6 @@ data TyVarDecl tyname ann = TyVarDecl
     , _tyVarDeclName :: tyname
     , _tyVarDeclKind :: Kind ann
     } deriving stock (Functor, Show, Generic)
-makeLenses ''TyVarDecl
 
 -- | A "variable declaration", i.e. a name and a type for a variable.
 data VarDecl tyname name uni ann = VarDecl
@@ -175,7 +135,6 @@ data VarDecl tyname name uni ann = VarDecl
     , _varDeclName :: name
     , _varDeclType :: Type tyname uni ann
     } deriving stock (Functor, Show, Generic)
-makeLenses ''VarDecl
 
 -- | A "type declaration", i.e. a kind for a type.
 data TyDecl tyname uni ann = TyDecl
@@ -183,7 +142,6 @@ data TyDecl tyname uni ann = TyDecl
     , _tyDeclType :: Type tyname uni ann
     , _tyDeclKind :: Kind ann
     } deriving stock (Functor, Show, Generic)
-makeLenses ''TyDecl
 
 tyDeclVar :: TyVarDecl tyname ann -> TyDecl tyname uni ann
 tyDeclVar (TyVarDecl ann name kind) = TyDecl ann (TyVar ann name) kind
@@ -210,45 +168,6 @@ type instance HasUniques (Term tyname name uni fun ann) =
     (HasUnique tyname TypeUnique, HasUnique name TermUnique)
 type instance HasUniques (Program tyname name uni fun ann) =
     HasUniques (Term tyname name uni fun ann)
-
--- | The default version of Plutus Core supported by this library.
-defaultVersion :: ann -> Version ann
-defaultVersion ann = Version ann 1 0 0
-
-typeAnn :: Type tyname uni ann -> ann
-typeAnn (TyVar ann _       ) = ann
-typeAnn (TyFun ann _ _     ) = ann
-typeAnn (TyIFix ann _ _    ) = ann
-typeAnn (TyForall ann _ _ _) = ann
-typeAnn (TyBuiltin ann _   ) = ann
-typeAnn (TyLam ann _ _ _   ) = ann
-typeAnn (TyApp ann _ _     ) = ann
-
-termAnn :: Term tyname name uni fun ann -> ann
-termAnn (Var ann _       ) = ann
-termAnn (TyAbs ann _ _ _ ) = ann
-termAnn (Apply ann _ _   ) = ann
-termAnn (Constant ann _  ) = ann
-termAnn (Builtin  ann _  ) = ann
-termAnn (TyInst ann _ _  ) = ann
-termAnn (Unwrap ann _    ) = ann
-termAnn (IWrap ann _ _ _ ) = ann
-termAnn (Error ann _     ) = ann
-termAnn (LamAbs ann _ _ _) = ann
-
--- | Map a function over the set of built-in functions.
-mapFun :: (fun -> fun') -> Term tyname name uni fun ann -> Term tyname name uni fun' ann
-mapFun f = go where
-    go (LamAbs ann name ty body)  = LamAbs ann name ty (go body)
-    go (TyAbs ann name kind body) = TyAbs ann name kind (go body)
-    go (IWrap ann pat arg term)   = IWrap ann pat arg (go term)
-    go (Apply ann fun arg)        = Apply ann (go fun) (go arg)
-    go (Unwrap ann term)          = Unwrap ann (go term)
-    go (Error ann ty)             = Error ann ty
-    go (TyInst ann term ty)       = TyInst ann (go term) ty
-    go (Var ann name)             = Var ann name
-    go (Constant ann con)         = Constant ann con
-    go (Builtin ann fun)          = Builtin ann (f fun)
 
 -- | This is a wrapper to mark the place where the binder is introduced (i.e. LamAbs/TyAbs)
 -- and not where it is actually used (TyVar/Var..).

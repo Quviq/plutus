@@ -18,8 +18,6 @@ module PureCake.PlutusCore.Evaluation.Result
 
 import PlutusPrelude
 
-import PureCake.PlutusCore.Pretty
-
 import Control.Lens
 import Control.Monad.Except
 
@@ -90,13 +88,6 @@ instance Alternative EvaluationResult where
 
 instance MonadFail EvaluationResult where
     fail _ = EvaluationFailure
-
-instance PrettyBy config a => PrettyBy config (EvaluationResult a) where
-    prettyBy config (EvaluationSuccess x) = prettyBy config x
-    prettyBy _      EvaluationFailure     = "Failure"
-
-instance PrettyClassic a => Pretty (EvaluationResult a) where
-    pretty = prettyClassicDef
 
 -- | Check whether an 'EvaluationResult' is an 'EvaluationSuccess'.
 isEvaluationSuccess :: EvaluationResult a -> Bool

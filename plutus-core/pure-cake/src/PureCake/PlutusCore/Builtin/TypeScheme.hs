@@ -12,9 +12,7 @@
 {-# LANGUAGE StrictData       #-}
 
 module PureCake.PlutusCore.Builtin.TypeScheme
-    ( Typeable
-    , TypeScheme (..)
-    , argProxy
+    ( TypeScheme (..)
     , typeSchemeToType
     ) where
 

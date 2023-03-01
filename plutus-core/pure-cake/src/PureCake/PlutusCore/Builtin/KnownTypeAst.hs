@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes      #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE DataKinds                #-}
 {-# LANGUAGE DefaultSignatures        #-}
@@ -12,23 +13,17 @@
 
 module PureCake.PlutusCore.Builtin.KnownTypeAst
     ( TyNameRep (..)
-    , TyVarRep
-    , TyAppRep
-    , TyForallRep
     , Hole
     , RepHole
     , TypeHole
     , KnownBuiltinTypeAst
     , KnownTypeAst (..)
-    , Merge
     ) where
 
 import PureCake.PlutusCore.Builtin.Emitter
 import PureCake.PlutusCore.Builtin.KnownKind
 import PureCake.PlutusCore.Builtin.Polymorphism
-import PureCake.PlutusCore.Core
 import PureCake.PlutusCore.Evaluation.Result
-import PureCake.PlutusCore.MkPlc hiding (error)
 import PureCake.PlutusCore.Name
 
 import Data.Kind qualified as GHC (Constraint, Type)
@@ -38,6 +33,11 @@ import Data.Text qualified as Text
 import Data.Type.Bool
 import GHC.TypeLits
 import Universe
+
+import Prelude hiding (error)
+
+import PureCake.PlutusCore.Core
+
 
 {- Note [Rep vs Type context]
 Say you define an @Id@ built-in function and specify its Haskell type signature:
@@ -280,3 +280,11 @@ type family Delete x xs :: [a] where
 type family Merge xs ys :: [a] where
     Merge '[]       ys = ys
     Merge (x ': xs) ys = x ': Delete x (Merge xs ys)
+
+mkTyBuiltinOf :: forall k (a :: k) uni tyname ann. ann -> uni (Esc a) -> Type tyname uni ann
+mkTyBuiltinOf ann = TyBuiltin ann . SomeTypeIn
+
+mkTyBuiltin
+    :: forall k (a :: k) uni tyname ann. uni `Contains` a
+    => ann -> Type tyname uni ann
+mkTyBuiltin ann = mkTyBuiltinOf ann $ knownUni @_ @uni @a
