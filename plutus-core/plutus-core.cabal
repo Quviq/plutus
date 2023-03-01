@@ -266,6 +266,7 @@ library
   hs-source-dirs:
     plutus-core/src plutus-core/stdlib plutus-core/examples
     plutus-ir/src untyped-plutus-core/src prelude common pure-cake/src
+    testlib
 
   other-modules:
     Data.Aeson.Flatten
@@ -298,6 +299,15 @@ library
     PlutusCore.Default.Builtins
     PlutusCore.Default.Universe
     PlutusCore.Eq
+    PlutusCore.Generators.QuickCheck.Builtin
+    PlutusCore.Generators.QuickCheck.Common
+    PlutusCore.Generators.QuickCheck.GenerateKinds
+    PlutusCore.Generators.QuickCheck.GenerateTypes
+    PlutusCore.Generators.QuickCheck.GenTm
+    PlutusCore.Generators.QuickCheck.ShrinkTypes
+    PlutusCore.Generators.QuickCheck.Substitutions
+    PlutusCore.Generators.QuickCheck.Unification
+    PlutusCore.Generators.QuickCheck.Utils
     PlutusCore.InlineUtils
     PlutusCore.Parser.Builtin
     PlutusCore.Parser.ParserCommon
@@ -320,6 +330,9 @@ library
     PlutusIR.Compiler.Provenance
     PlutusIR.Compiler.Recursion
     PlutusIR.Compiler.Types
+    PlutusIR.Generators.QuickCheck.Common
+    PlutusIR.Generators.QuickCheck.GenerateTerms
+    PlutusIR.Generators.QuickCheck.ShrinkTerms
     PlutusIR.Normalize
     Universe.Core
     UntypedPlutusCore.Analysis.Definitions
@@ -344,6 +357,7 @@ library
     UntypedPlutusCore.Transform.ForceDelay
     UntypedPlutusCore.Transform.Inline
 
+  -- PlutusCore.Generators.QuickCheck
   -- Bound on cardano-crypto-class for the fixed SECP primitives
   build-depends:
     , aeson
@@ -389,6 +403,8 @@ library
     , prettyprinter-configurable  ^>=1.1
     , primitive
     , QuickCheck
+    , quickcheck-instances
+    , quickcheck-transformer
     , recursion-schemes
     , semigroupoids
     , semigroups                  >=0.19.1
