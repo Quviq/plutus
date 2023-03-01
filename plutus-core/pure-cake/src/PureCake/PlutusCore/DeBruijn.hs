@@ -3,235 +3,105 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- | Support for using de Bruijn indices for term and type names.
 module PureCake.PlutusCore.DeBruijn
     ( Index (..)
-    , HasIndex (..)
-    , DeBruijn (..)
     , NamedDeBruijn (..)
-    , FakeNamedDeBruijn (..)
-    , TyDeBruijn (..)
-    , NamedTyDeBruijn (..)
-    , FreeVariableError (..)
-    , AsFreeVariableError (..)
-    , unNameDeBruijn
-    , unNameTyDeBruijn
-    , fakeNameDeBruijn
-    , deBruijnTy
-    , deBruijnTerm
-    , unDeBruijnTy
-    , unDeBruijnTerm
-    -- * unsafe api, use with care
-    , deBruijnTyWith
-    , deBruijnTermWith
-    , unDeBruijnTyWith
-    , unDeBruijnTermWith
-    , freeIndexAsConsistentLevel
     , deBruijnInitIndex
-    , fromFake, toFake
     ) where
 
-import PureCake.PlutusCore.DeBruijn.Internal
-
-import PureCake.PlutusCore.Core.Type
 import PureCake.PlutusCore.Name
-import PureCake.PlutusCore.Quote
 
-import Control.Lens hiding (Index, Level, index)
-import Control.Monad.Except
-import Control.Monad.Reader
+import Control.Exception
+import Control.Lens hiding (Index, Level, index, ix)
 
-{- NOTE: [DeBruijn indices of Binders]
-In a debruijnijfied Term AST, the Binders have a debruijn index
-at their the specific AST location.
-During *undebruijnification* we ignore such binders' indices because they are meaningless,
-and instead use the convention that such introduced binders have
-a fixed debruijn index '0' at their introduction.
--}
+import Data.Text qualified as T
+import Data.Word
 
--- | Takes a "handler" function to execute when encountering free variables.
-unDeBruijnTyWith
-    :: MonadQuote m
-    => (Index -> ReaderT Levels m Unique)
-    -> Type NamedTyDeBruijn uni ann
-    -> m (Type TyName uni ann)
-unDeBruijnTyWith = (runDeBruijnT .) . unDeBruijnTyWithM
+import Control.DeepSeq (NFData)
+import ErrorCode
+import GHC.Generics
 
--- | Takes a "handler" function to execute when encountering free variables.
-unDeBruijnTermWith
-    :: MonadQuote m
-    => (Index -> ReaderT Levels m Unique)
-    -> Term NamedTyDeBruijn NamedDeBruijn uni fun ann
-    -> m (Term TyName Name uni fun ann)
-unDeBruijnTermWith = (runDeBruijnT .) . unDeBruijnTermWithM
+-- | A relative index used for de Bruijn identifiers.
+newtype Index = Index Word64
+    deriving stock (Generic)
+    deriving newtype (Show, Num, Enum, Real, Integral, Eq, Ord, NFData)
 
--- | Convert a 'Type' with 'NamedTyDeBruijn's into a 'Type' with 'TyName's.
--- Will throw an error if a free variable is encountered.
-unDeBruijnTy
-    :: (MonadQuote m, AsFreeVariableError e, MonadError e m)
-    => Type NamedTyDeBruijn uni ann -> m (Type TyName uni ann)
-unDeBruijnTy = unDeBruijnTyWith freeIndexThrow
+-- | The LamAbs index (for debruijn indices) and the starting level of DeBruijn monad
+deBruijnInitIndex :: Index
+deBruijnInitIndex = 0
 
--- | Convert a 'Term' with 'NamedTyDeBruijn's and 'NamedDeBruijn's into a 'Term' with 'TyName's and 'Name's.
--- Will throw an error if a free variable is encountered.
-unDeBruijnTerm
-    :: (MonadQuote m, AsFreeVariableError e, MonadError e m)
-    => Term NamedTyDeBruijn NamedDeBruijn uni fun ann -> m (Term TyName Name uni fun ann)
-unDeBruijnTerm = unDeBruijnTermWith freeIndexThrow
+-- The bangs gave us a speedup of 6%.
+-- | A term name as a de Bruijn index.
+data NamedDeBruijn = NamedDeBruijn { ndbnString :: !T.Text, ndbnIndex :: !Index }
+    deriving stock (Show, Generic)
+    deriving anyclass NFData
 
--- | Convert a 'Type' with 'TyName's into a 'Type' with 'NamedTyDeBruijn's.
--- Will throw an error if a free variable is encountered.
-deBruijnTy
-    :: (AsFreeVariableError e, MonadError e m)
-    => Type TyName uni ann -> m (Type NamedTyDeBruijn uni ann)
-deBruijnTy = deBruijnTyWith freeUniqueThrow
+-- | A wrapper around nameddebruijn that must hold the invariant of name=`fakeName`.
+newtype FakeNamedDeBruijn = FakeNamedDeBruijn NamedDeBruijn
+    deriving newtype (Show, Eq, NFData)
 
--- | Convert a 'Term' with 'TyName's and 'Name's into a 'Term' with 'NamedTyDeBruijn's and 'NamedDeBruijn's.
--- Will throw an error if a free variable is encountered.
-deBruijnTerm
-    :: (AsFreeVariableError e, MonadError e m)
-    => Term TyName Name uni fun ann -> m (Term NamedTyDeBruijn NamedDeBruijn uni fun ann)
-deBruijnTerm = deBruijnTermWith freeUniqueThrow
+instance Eq NamedDeBruijn where
+    -- ignoring actual names and only relying solely on debruijn indices
+    (NamedDeBruijn _ ix1) == (NamedDeBruijn _ ix2) = ix1 == ix2
 
-deBruijnTermWith
-    :: Monad m
-    => (Unique -> ReaderT Levels m Index)
-    -> Term TyName Name uni fun ann
-    -> m (Term NamedTyDeBruijn NamedDeBruijn uni fun ann)
-deBruijnTermWith = (runDeBruijnT .) . deBruijnTermWithM
+-- | A term name as a de Bruijn index, without the name string.
+newtype DeBruijn = DeBruijn { dbnIndex :: Index }
+    deriving stock (Show, Generic, Eq)
+    deriving newtype (NFData)
 
-deBruijnTyWith
-    :: Monad m
-    => (Unique -> ReaderT Levels m Index)
-    -> Type TyName uni ann
-    -> m (Type NamedTyDeBruijn uni ann)
-deBruijnTyWith = (runDeBruijnT .) . deBruijnTyWithM
+-- | A type name as a de Bruijn index.
+newtype NamedTyDeBruijn = NamedTyDeBruijn NamedDeBruijn
+    deriving stock (Show, Generic)
+    deriving newtype (NFData)
+    -- ignoring actual names and only relying solely on debruijn indices
+    deriving Eq via NamedDeBruijn
+instance Wrapped NamedTyDeBruijn
 
-{- Note [De Bruijn conversion and recursion schemes]
-These are quite repetitive, but we can't use a catamorphism for this, because
-we are not only altering the recursive type, but also the name type parameters.
-These are normally constant in a catamorphic application.
--}
+-- | A type name as a de Bruijn index, without the name string.
+newtype TyDeBruijn = TyDeBruijn DeBruijn
+    deriving stock (Show, Generic)
+    deriving newtype (NFData)
+    deriving Eq via DeBruijn
+instance Wrapped TyDeBruijn
 
-deBruijnTyWithM
-    :: forall m uni ann. MonadReader Levels m
-    => (Unique -> m Index)
-    -> Type TyName uni ann
-    -> m (Type NamedTyDeBruijn uni ann)
-deBruijnTyWithM h = go
-  where
-    go :: Type TyName uni ann -> m (Type NamedTyDeBruijn uni ann)
-    go = \case
-        -- variable case
-        TyVar ann n -> TyVar ann <$> tyNameToDeBruijn h n
-        -- binder cases
-        TyForall ann tn k ty -> declareUnique tn $ do
-            tn' <- tyNameToDeBruijn h tn
-            withScope $ TyForall ann tn' k <$> go ty
-        TyLam ann tn k ty -> declareUnique tn $ do
-            tn' <- tyNameToDeBruijn h tn
-            withScope $ TyLam ann tn' k <$> go ty
-        -- boring recursive cases
-        TyFun ann i o -> TyFun ann <$> go i <*> go o
-        TyApp ann fun arg -> TyApp ann <$> go fun <*> go arg
-        TyIFix ann pat arg -> TyIFix ann <$> go pat <*> go arg
-        -- boring non-recursive cases
-        TyBuiltin ann con -> pure $ TyBuiltin ann con
+class HasIndex a where
+    index :: Lens' a Index
 
-deBruijnTermWithM
-    :: forall m uni fun ann. (MonadReader Levels m)
-    => (Unique -> m Index)
-    -> Term TyName Name uni fun ann
-    -> m (Term NamedTyDeBruijn NamedDeBruijn uni fun ann)
-deBruijnTermWithM h = go
-  where
-    goT :: Type TyName uni ann -> m (Type NamedTyDeBruijn uni ann)
-    goT = deBruijnTyWithM h
+instance HasIndex NamedDeBruijn where
+    index = lens g s where
+        g = ndbnIndex
+        s n i = n{ndbnIndex=i}
 
-    go :: Term TyName Name uni fun ann -> m (Term NamedTyDeBruijn NamedDeBruijn uni fun ann)
-    go = \case
-        -- variable case
-        Var ann n -> Var ann <$> nameToDeBruijn h n
-        -- binder cases
-        TyAbs ann tn k t -> declareUnique tn $ do
-            tn' <- tyNameToDeBruijn h tn
-            withScope $ TyAbs ann tn' k <$> go t
-        LamAbs ann n ty t -> declareUnique n $ do
-            n' <- nameToDeBruijn h n
-            withScope $ LamAbs ann n' <$> goT ty <*> go t
-        -- boring recursive cases
-        Apply ann t1 t2 -> Apply ann <$> go t1 <*> go t2
-        TyInst ann t ty -> TyInst ann <$> go t <*> goT ty
-        Unwrap ann t -> Unwrap ann <$> go t
-        IWrap ann pat arg t -> IWrap ann <$> goT pat <*> goT arg <*> go t
-        Error ann ty -> Error ann <$> goT ty
-        -- boring non-recursive cases
-        Constant ann con -> pure $ Constant ann con
-        Builtin ann bn -> pure $ Builtin ann bn
+instance HasIndex DeBruijn where
+    index = lens g s where
+        g = dbnIndex
+        s n i = n{dbnIndex=i}
 
--- | Takes a "handler" function to execute when encountering free variables.
-unDeBruijnTyWithM
-    :: forall m uni ann. (MonadReader Levels m, MonadQuote m)
-    => (Index -> m Unique)
-    -> Type NamedTyDeBruijn uni ann
-    -> m (Type TyName uni ann)
-unDeBruijnTyWithM h = go
-  where
-    go :: Type NamedTyDeBruijn uni ann -> m (Type TyName uni ann)
-    go = \case
-      -- variable case
-      TyVar ann n -> TyVar ann <$> deBruijnToTyName h n
-      -- binder cases
-      TyForall ann tn k ty ->
-          -- See NOTE: [DeBruijn indices of Binders]
-          declareBinder $ do
-            tn' <- deBruijnToTyName h $ set index deBruijnInitIndex tn
-            withScope $ TyForall ann tn' k <$> go ty
-      TyLam ann tn k ty ->
-          -- See NOTE: [DeBruijn indices of Binders]
-          declareBinder $ do
-            tn' <- deBruijnToTyName h $ set index deBruijnInitIndex tn
-            withScope $ TyLam ann tn' k <$> go ty
-      -- boring recursive cases
-      TyFun ann i o -> TyFun ann <$> go i <*> go o
-      TyApp ann fun arg -> TyApp ann <$> go fun <*> go arg
-      TyIFix ann pat arg -> TyIFix ann <$> go pat <*> go arg
-      -- boring non-recursive cases
-      TyBuiltin ann con -> pure $ TyBuiltin ann con
+instance HasIndex NamedTyDeBruijn where
+    index = _Wrapped' . index
 
--- | Takes a "handler" function to execute when encountering free variables.
-unDeBruijnTermWithM
-    :: forall m uni fun ann. (MonadReader Levels m, MonadQuote m)
-    => (Index -> m Unique)
-    -> Term NamedTyDeBruijn NamedDeBruijn uni fun ann
-    -> m (Term TyName Name uni fun ann)
-unDeBruijnTermWithM h = go
-  where
-    goT :: Type NamedTyDeBruijn uni ann -> m (Type TyName uni ann)
-    goT = unDeBruijnTyWithM h
+instance HasIndex TyDeBruijn where
+    index = _Wrapped' . index
 
-    go :: Term NamedTyDeBruijn NamedDeBruijn uni fun ann -> m (Term TyName Name uni fun ann)
-    go = \case
-        -- variable case
-        Var ann n -> Var ann <$> deBruijnToName h n
-        -- binder cases
-        TyAbs ann tn k t ->
-            -- See NOTE: [DeBruijn indices of Binders]
-            declareBinder $ do
-              tn' <- deBruijnToTyName h $ set index deBruijnInitIndex tn
-              withScope $ TyAbs ann tn' k <$> go t
-        LamAbs ann n ty t ->
-            -- See NOTE: [DeBruijn indices of Binders]
-            declareBinder $ do
-              n' <- deBruijnToName h $ set index deBruijnInitIndex n
-              withScope $ LamAbs ann n' <$> goT ty <*> go t
-        -- boring recursive cases
-        Apply ann t1 t2 -> Apply ann <$> go t1 <*> go t2
-        TyInst ann t ty -> TyInst ann <$> go t <*> goT ty
-        Unwrap ann t -> Unwrap ann <$> go t
-        IWrap ann pat arg t -> IWrap ann <$> goT pat <*> goT arg <*> go t
-        Error ann ty -> Error ann <$> goT ty
-        -- boring non-recursive cases
-        Constant ann con -> pure $ Constant ann con
-        Builtin ann bn -> pure $ Builtin ann bn
+-- Converting from normal names to DeBruijn indices, and vice versa
+
+-- | An absolute level in the program.
+newtype Level = Level Integer deriving newtype (Eq, Ord, Num, Real, Enum, Integral)
+
+-- | We cannot do a correct translation to or from de Bruijn indices if the program is not well-scoped.
+-- So we throw an error in such a case.
+data FreeVariableError
+    = FreeUnique Unique
+    | FreeIndex Index
+    deriving stock (Show, Eq, Ord, Generic)
+    deriving anyclass (Exception, NFData)
+
+makeClassyPrisms ''FreeVariableError
+
+instance HasErrorCode FreeVariableError where
+    errorCode  FreeIndex {}  = ErrorCode 23
+    errorCode  FreeUnique {} = ErrorCode 22

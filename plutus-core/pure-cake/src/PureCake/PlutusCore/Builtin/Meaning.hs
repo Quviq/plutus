@@ -29,7 +29,6 @@ import PureCake.PlutusCore.Builtin.TypeScheme
 import PureCake.PlutusCore.Core
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory
-import PureCake.PlutusCore.Name
 
 import Control.DeepSeq
 import Data.Array
@@ -81,11 +80,6 @@ class (Typeable uni, Typeable fun, Bounded fun, Enum fun, Ix fun, Default (Built
 
     -- | Get the 'BuiltinMeaning' of a built-in function.
     toBuiltinMeaning :: HasMeaningIn uni val => BuiltinVersion fun -> fun -> BuiltinMeaning val (CostingPart uni fun)
-
--- | Get the type of a built-in function.
-typeOfBuiltinFunction :: forall uni fun. ToBuiltinMeaning uni fun => BuiltinVersion fun -> fun -> Type TyName uni ()
-typeOfBuiltinFunction ver fun = case toBuiltinMeaning @_ @_ @(Term TyName Name uni fun ()) ver fun of
-    BuiltinMeaning sch _ _ -> typeSchemeToType sch
 
 {- Note [Versioned builtins]
 The purpose of the "versioned builtins" feature is to provide multiple, different denotations (implementations)

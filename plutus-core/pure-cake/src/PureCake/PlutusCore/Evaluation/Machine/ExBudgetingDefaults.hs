@@ -12,7 +12,10 @@ where
 import PureCake.PlutusCore.Builtin
 
 import PlutusCore.DataFilePaths qualified as DFP
-import PureCake.PlutusCore.Default
+
+import PureCake.PlutusCore.Default.Universe
+import PureCake.PlutusCore.Default.Builtins
+
 import PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
 import PureCake.PlutusCore.Evaluation.Machine.CostModelInterface
 import PureCake.PlutusCore.Evaluation.Machine.MachineParameters

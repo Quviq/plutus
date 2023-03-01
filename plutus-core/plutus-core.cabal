@@ -178,53 +178,6 @@ library
     PlutusIR.TypeCheck.Internal
     PlutusPrelude
     Prettyprinter.Custom
-    PureCake.Crypto
-    PureCake.PlutusCore.Builtin
-    PureCake.PlutusCore.Builtin.Elaborate
-    PureCake.PlutusCore.Builtin.Emitter
-    PureCake.PlutusCore.Builtin.HasConstant
-    PureCake.PlutusCore.Builtin.KnownKind
-    PureCake.PlutusCore.Builtin.KnownType
-    PureCake.PlutusCore.Builtin.KnownTypeAst
-    PureCake.PlutusCore.Builtin.Meaning
-    PureCake.PlutusCore.Builtin.Polymorphism
-    PureCake.PlutusCore.Builtin.Runtime
-    PureCake.PlutusCore.Builtin.TestKnown
-    PureCake.PlutusCore.Builtin.TypeScheme
-    PureCake.PlutusCore.Core
-    PureCake.PlutusCore.Core.Instance
-    PureCake.PlutusCore.Core.Instance.Eq
-    PureCake.PlutusCore.Core.Plated
-    PureCake.PlutusCore.Core.Type
-    PureCake.PlutusCore.DeBruijn
-    PureCake.PlutusCore.DeBruijn.Internal
-    PureCake.PlutusCore.Default
-    PureCake.PlutusCore.Default.Builtins
-    PureCake.PlutusCore.Default.Universe
-    PureCake.PlutusCore.Eq
-    PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
-    PureCake.PlutusCore.Evaluation.Machine.CostingFun.Core
-    PureCake.PlutusCore.Evaluation.Machine.CostingFun.JSON
-    PureCake.PlutusCore.Evaluation.Machine.CostModelInterface
-    PureCake.PlutusCore.Evaluation.Machine.ExBudget
-    PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
-    PureCake.PlutusCore.Evaluation.Machine.Exception
-    PureCake.PlutusCore.Evaluation.Machine.ExMemory
-    PureCake.PlutusCore.Evaluation.Machine.MachineParameters
-    PureCake.PlutusCore.Evaluation.Result
-    PureCake.PlutusCore.Name
-    PureCake.PlutusCore.Quote
-    PureCake.PlutusCore.Rename.Monad
-    PureCake.TestHarness
-    PureCake.ToPureCake
-    PureCake.UntypedPlutusCore.Core
-    PureCake.UntypedPlutusCore.Core.Instance
-    PureCake.UntypedPlutusCore.Core.Instance.Eq
-    PureCake.UntypedPlutusCore.Core.Plated
-    PureCake.UntypedPlutusCore.Core.Type
-    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
-    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
-    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     Universe
     UntypedPlutusCore
     UntypedPlutusCore.Check.Scope
@@ -238,15 +191,15 @@ library
     UntypedPlutusCore.MkUPlc
     UntypedPlutusCore.Parser
     UntypedPlutusCore.Rename
+    Data.Aeson.Flatten
+    Data.Aeson.THReader
 
   hs-source-dirs:
     plutus-core/src plutus-core/stdlib plutus-core/examples
-    plutus-ir/src untyped-plutus-core/src prelude common pure-cake/src
+    plutus-ir/src untyped-plutus-core/src prelude common
     testlib
 
   other-modules:
-    Data.Aeson.Flatten
-    Data.Aeson.THReader
     Data.Functor.Foldable.Monadic
     GHC.Natural.Extras
     PlutusCore.Analysis.Definitions
@@ -336,6 +289,134 @@ library
   -- PlutusCore.Generators.QuickCheck
   -- Bound on cardano-crypto-class for the fixed SECP primitives
   build-depends:
+    , aeson
+    , algebraic-graphs            >=0.7
+    , array
+    , barbies
+    , base                        >=4.9     && <5
+    , base64-bytestring
+    , bimap
+    , bytestring
+    , cardano-crypto
+    , cardano-crypto-class        ^>=2.0.0.1
+    , cassava
+    , cborg
+    , composition-prelude         >=1.1.0.1
+    , containers
+    , cryptonite
+    , data-default-class
+    , deepseq
+    , dependent-sum-template
+    , deriving-aeson              >=0.2.3
+    , deriving-compat
+    , dlist
+    , dom-lt
+    , exceptions
+    , extra
+    , filepath
+    , flat                        <0.5
+    , ghc-prim
+    , hashable                    >=1.4
+    , hedgehog                    >=1.0
+    , index-envs
+    , int-cast
+    , lens
+    , megaparsec
+    , mmorph
+    , monoidal-containers
+    , mtl
+    , multiset
+    , nothunks                    >=0.1.1
+    , parser-combinators          >=0.4.0
+    , prettyprinter               >=1.1.0.1
+    , prettyprinter-configurable  ^>=1.1
+    , primitive
+    , QuickCheck
+    , quickcheck-instances
+    , quickcheck-transformer
+    , recursion-schemes
+    , semigroupoids
+    , semigroups                  >=0.19.1
+    , serialise
+    , some
+    , template-haskell
+    , text
+    , th-compat
+    , th-lift
+    , th-lift-instances
+    , th-utilities
+    , time
+    , transformers
+    , unordered-containers
+    , witherable
+    , word-array                  ^>=1.1
+
+  if impl(ghc <9.0)
+    build-depends: integer-gmp
+
+library purecake
+  import:          lang
+  exposed-modules:
+    PureCake.TestHarness
+  other-modules:
+    PureCake.Crypto
+    PureCake.PlutusCore.Builtin
+    PureCake.PlutusCore.Builtin.Elaborate
+    PureCake.PlutusCore.Builtin.Emitter
+    PureCake.PlutusCore.Builtin.HasConstant
+    PureCake.PlutusCore.Builtin.KnownKind
+    PureCake.PlutusCore.Builtin.KnownType
+    PureCake.PlutusCore.Builtin.KnownTypeAst
+    PureCake.PlutusCore.Builtin.Meaning
+    PureCake.PlutusCore.Builtin.Polymorphism
+    PureCake.PlutusCore.Builtin.Runtime
+    PureCake.PlutusCore.Builtin.TestKnown
+    PureCake.PlutusCore.Builtin.TypeScheme
+    PureCake.PlutusCore.Core
+    PureCake.PlutusCore.Core.Type
+    PureCake.PlutusCore.DeBruijn
+    PureCake.PlutusCore.Default.Builtins
+    PureCake.PlutusCore.Default.Universe
+    PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
+    PureCake.PlutusCore.Evaluation.Machine.CostingFun.Core
+    PureCake.PlutusCore.Evaluation.Machine.CostingFun.JSON
+    PureCake.PlutusCore.Evaluation.Machine.CostModelInterface
+    PureCake.PlutusCore.Evaluation.Machine.ExBudget
+    PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
+    PureCake.PlutusCore.Evaluation.Machine.Exception
+    PureCake.PlutusCore.Evaluation.Machine.ExMemory
+    PureCake.PlutusCore.Evaluation.Machine.MachineParameters
+    PureCake.PlutusCore.Evaluation.Result
+    PureCake.PlutusCore.Name
+    PureCake.ToPureCake
+    PureCake.UntypedPlutusCore.Core
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
+    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
+
+    ErrorCode
+    PlutusCore.Generators.QuickCheck.Builtin
+    PlutusCore.Generators.QuickCheck.Common
+    PlutusCore.Generators.QuickCheck.GenTm
+    PlutusCore.Generators.QuickCheck.GenerateKinds
+    PlutusCore.Generators.QuickCheck.GenerateTypes
+    PlutusCore.Generators.QuickCheck.ShrinkTypes
+    PlutusCore.Generators.QuickCheck.Substitutions
+    PlutusCore.Generators.QuickCheck.Unification
+    PlutusCore.Generators.QuickCheck.Utils
+    PlutusIR.Generators.QuickCheck.Common
+    PlutusIR.Generators.QuickCheck.GenerateTerms
+    PlutusIR.Generators.QuickCheck.ShrinkTerms
+    PlutusPrelude
+
+  hs-source-dirs:
+    prelude common pure-cake/src
+    testlib
+
+  -- PlutusCore.Generators.QuickCheck
+  -- Bound on cardano-crypto-class for the fixed SECP primitives
+  build-depends:
+    , plutus-core
     , aeson
     , algebraic-graphs            >=0.7
     , array

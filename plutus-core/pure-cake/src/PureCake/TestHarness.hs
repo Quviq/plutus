@@ -8,20 +8,16 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Text
 
-import PlutusCore.DeBruijn.Internal qualified as PLC
-import PlutusCore.Default.Builtins qualified as PLC
-import PlutusCore.Default.Universe qualified as PLC
+import PlutusCore.Default qualified as PLC
 import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
 import PlutusCore.Evaluation.Machine.ExBudgetingDefaults qualified as PLC
 import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
 import PlutusCore.Quote
 import PlutusCore.TypeCheck qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
-import UntypedPlutusCore.Evaluation.Machine.Cek.EmitterMode qualified as PLC
-import UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as PLC
-import UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as PLC
+import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
-import PureCake.PlutusCore.DeBruijn.Internal qualified as Cake
+import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.PlutusCore.Default.Builtins qualified as Cake
 import PureCake.PlutusCore.Default.Universe qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults qualified as Cake

@@ -23,16 +23,10 @@ import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.PlutusCore.Evaluation.Machine.Exception
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExCPU (..), ExMemory (..))
 
-import Control.Lens (ifoldMap)
 import Control.Monad.Except
 import Data.Hashable (Hashable)
-import Data.HashMap.Monoidal as HashMap
-import Data.List (intersperse)
-import Data.Map.Strict qualified as Map
 import Data.Primitive.PrimArray
 import Data.SatInt
-import Data.Semigroup.Generic
-import Data.STRef
 
 newtype RestrictingSt = RestrictingSt ExRestrictingBudget
     deriving stock (Eq, Show)

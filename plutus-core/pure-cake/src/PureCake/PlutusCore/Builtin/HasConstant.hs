@@ -5,7 +5,6 @@
 
 module PureCake.PlutusCore.Builtin.HasConstant
     ( KnownTypeError (..)
-    , throwNotAConstant
     , HasConstant (..)
     , HasConstantIn
     , fromValueOf
@@ -14,7 +13,6 @@ module PureCake.PlutusCore.Builtin.HasConstant
 
 import PureCake.PlutusCore.Core
 import PureCake.PlutusCore.Evaluation.Machine.Exception
-import PureCake.PlutusCore.Name
 
 import Universe
 
@@ -41,9 +39,3 @@ fromValueOf uni = fromConstant . someValueOf uni
 fromValue :: (HasConstant term, UniOf term `Includes` a) => a -> term
 fromValue = fromValueOf knownUni
 {-# INLINE fromValue #-}
-
-instance HasConstant (Term TyName Name uni fun ()) where
-    asConstant (Constant _ val) = pure val
-    asConstant _                = throwNotAConstant
-
-    fromConstant = Constant ()

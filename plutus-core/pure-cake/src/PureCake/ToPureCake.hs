@@ -6,7 +6,7 @@ module PureCake.ToPureCake where
 
 import Data.Coerce
 
-import PlutusCore.Default.Builtins qualified as PLC
+import PlutusCore.Default qualified as PLC
 import PlutusCore.Evaluation.Machine.Exception qualified as PLC
 import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
 
@@ -15,14 +15,12 @@ import PureCake.PlutusCore.Evaluation.Machine.Exception qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory qualified as Cake
 import PureCake.UntypedPlutusCore.Core qualified as Cake
 
-import PlutusCore.DeBruijn.Internal qualified as PLC
-import PlutusCore.Default.Universe qualified as PLC
+import PlutusCore.DeBruijn qualified as PLC
 import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
-import UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as PLC
-import UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as PLC
+import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
-import PureCake.PlutusCore.DeBruijn.Internal qualified as Cake
+import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.PlutusCore.Default.Universe qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake

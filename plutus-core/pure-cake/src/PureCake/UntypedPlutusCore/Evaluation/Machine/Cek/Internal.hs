@@ -26,7 +26,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
-    -- See Note [Compilation peculiarities].
     ( EvaluationResult(..)
     , CekValue(..)
     , CekUserError(..)
@@ -34,22 +33,10 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , CekBudgetSpender(..)
     , ExBudgetInfo(..)
     , ExBudgetMode(..)
-    , CekEmitter
     , CekEmitterInfo(..)
     , EmitterMode(..)
     , CekM (..)
-    , ErrorWithCause(..)
-    , EvaluationError(..)
-    , ExBudgetCategory(..)
-    , StepKind(..)
-    , extractEvaluationResult
     , runCekDeBruijn
-    , dischargeCekValue
-    , Context (..)
-    , CekValEnv
-    , GivenCekReqs
-    , GivenCekSpender
-    , Slippage
     )
 where
 
@@ -57,7 +44,7 @@ import PureCake.PlutusCore.Default.Builtins
 import PureCake.PlutusCore.Default.Universe
 
 import ErrorCode (ErrorCode (..), HasErrorCode (..))
-import PlutusPrelude (Generic, NFData, Typeable, coerce, ($>))
+import PlutusPrelude (Generic, coerce, ($>))
 
 import PureCake.UntypedPlutusCore.Core (Term (..), UniOf)
 
@@ -68,8 +55,8 @@ import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasCon
                                     lookupBuiltin, throwKnownTypeErrorWithCause)
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), ExBudgetBuiltin (..), ExRestrictingBudget (..))
-import PureCake.PlutusCore.Evaluation.Machine.Exception (ErrorWithCause (..), EvaluationError (..), EvaluationException,
-                                                         MachineError (..), _MachineError, extractEvaluationResult,
+import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), EvaluationException,
+                                                         MachineError (..), _MachineError,
                                                          throwNotAConstant, throwingWithCause, throwing_)
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExMemoryUsage (..))
 import PureCake.PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
@@ -84,73 +71,10 @@ import Control.Monad.Except (MonadError (..))
 import Control.Monad.ST (ST, runST)
 import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
 import Data.DList (DList)
-import Data.Hashable (Hashable)
-import Data.Kind qualified as GHC (Type)
 import Data.Semigroup (stimes)
 import Data.Text (Text)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
-import Prettyprinter (Pretty (..), cat, viaShow)
-import Universe (Closed, Everywhere, Some, SomeTypeIn, ValueOf)
-
-{- Note [Compilation peculiarities]
-READ THIS BEFORE TOUCHING ANYTHING IN THIS FILE
-
-Don't use @StrictData@, it makes the machine slower by several percent.
-
-Exporting the 'computeCek' function from this module causes the CEK machine to become slower by
-up to 25%. I repeat: just adding 'computeCek' to the export list makes the evaluator substantially
-slower. The reason for this is that with 'computeCek' exported the generated GHC Core is much worse:
-it contains more lambdas, allocates more stuff etc. While perhaps surprising, this is not an
-unusual behavior of the compiler as https://wiki.haskell.org/Performance/GHC explains:
-
-> Indeed, generally speaking GHC will inline across modules just as much as it does within modules,
-> with a single large exception. If GHC sees that a function 'f' is called just once, it inlines it
-> regardless of how big 'f' is. But once 'f' is exported, GHC can never see that it's called exactly
-> once, even if that later turns out to be the case. This inline-once optimisation is pretty
-> important in practice.
->
-> So: if you care about performance, do not export functions that are not used outside the module
-> (i.e. use an explicit export list, and keep it as small as possible).
-
-Now clearly 'computeCek' cannot be inlined in 'runCek' whether it's exported or not, since
-'computeCek' is recursive. However:
-
-1. GHC is _usually_ smart enough to perform the worker/wrapper transformation and inline the wrapper
-   (however experiments have shown that sticking the internals of the CEK machine, budgeting modes
-   and the API into the same file prevents GHC from performing the worker/wrapper transformation for
-   some reason likely related to "we've been compiling this for too long, let's leave it at that"
-2. GHC seems to be able to massage the definition of 'computeCek' into something more performant
-   making use of knowing exactly how 'computeCek' is used, essentially tailoring the definition of
-   'computeCek' for a particular invocation in 'runCek'
-
-Hence we don't export 'computeCek' and instead define 'runCek' in this file and export it, even
-though the rest of the user-facing API (which 'runCek' is a part of) is defined downstream.
-
-Another problem is handling mutual recursion in the 'computeCek'/'returnCek'/'forceEvaluate'/etc
-family. If we keep these functions at the top level, GHC won't be able to pull the constraints out of
-the family (confirmed by inspecting Core: GHC thinks that since the superclass constraints
-populating the dictionary representing the @Ix fun@ constraint are redundant, they can be replaced
-with calls to 'error' in a recursive call, but that changes the dictionary and so it can no longer
-be pulled out of recursion). But that entails passing a redundant argument around, which slows down
-the machine a tiny little bit.
-
-Hence we define a number of the functions as local functions making use of a
-shared context from their parent function. This also allows GHC to inline almost
-all of the machine into a single definition (with a bunch of recursive join
-points in it).
-
-In general, it's advised to run benchmarks (and look at Core output if the results are suspicious)
-on any changes in this file.
-
-Finally, it's important to put bang patterns on any Int arguments to ensure that GHC unboxes them:
-this can make a surprisingly large difference.
--}
-
-{- Note [Scoping]
-The CEK machine does not rely on the global uniqueness condition, so the renamer pass is not a
-prerequisite. The CEK machine correctly handles name shadowing.
--}
 
 data StepKind
     = BConst
@@ -161,10 +85,9 @@ data StepKind
     | BForce
     | BBuiltin -- Cost of evaluating a Builtin AST node, not the function itself
     deriving stock (Show, Eq, Ord, Generic, Enum, Bounded)
-    deriving anyclass (NFData, Hashable)
 
 cekStepCost :: CekMachineCosts -> StepKind -> ExBudget
-cekStepCost costs = \case
+cekStepCost costs kind = case kind of
     BConst   -> cekConstCost costs
     BVar     -> cekVarCost costs
     BLamAbs  -> cekLamCost costs
@@ -178,15 +101,9 @@ data ExBudgetCategory
     | BBuiltinApp DefaultFun  -- Cost of evaluating a fully applied builtin function
     | BStartup
     deriving stock (Show, Eq, Ord, Generic)
-    deriving anyclass (NFData, Hashable)
 
 instance ExBudgetBuiltin DefaultFun ExBudgetCategory where
     exBudgetBuiltin = BBuiltinApp
-
-{- Note [Show instance for BuiltinRuntime]
-We need to be able to print 'CekValue's and for that we need a 'Show' instance for 'BuiltinRuntime',
-but functions are not printable and hence we provide a dummy instance.
--}
 
 -- See Note [Show instance for BuiltinRuntime].
 instance Show (BuiltinRuntime CekValue) where
@@ -246,54 +163,8 @@ newtype ExBudgetMode cost = ExBudgetMode
     { unExBudgetMode :: forall s. ST s (ExBudgetInfo cost s)
     }
 
-{- Note [Cost slippage]
-Tracking the budget usage for every step in the machine adds a lot of overhead. To reduce this,
-we adopt a technique which allows some overshoot of the budget ("slippage"), but only a bounded
-amount.
-
-To do this we:
-- Track all the machine steps of all kinds in an optimized way in a 'WordArray'.
-- Actually "spend" the budget when we've done more than some fixed number of steps, or at the end.
-
-This saves a *lot* of time, at the cost of potentially overshooting the budget by slippage*step_cost,
-which is okay so long as we bound the slippage appropriately.
-
-Note that we're only proposing to do this for machine steps, since it's plausible that we can track
-them in an optimized way. Builtins are more complicated (and infrequent), so we can just budget them
-properly when we hit them.
-
-There are two options for how to bound the slippage:
-1. As a fixed number of steps
-2. As a proportion of the overall budget
-
-Option 2 initially seems much better as a bound: if we run N scripts with an overall budget of B, then
-the potential overrun from 1 is N*slippage, whereas the overrun from 2 is B*slippage. That is, 2
-says we always overrun by a fraction of the total amount of time you were expecting, whereas 1 says
-it depends how many scripts you run... so if I send you a lot of small scripts, I could cause a lot
-of overrun.
-
-However, it turns out (empirically) that we can pick a number for 1 that gives us most of the speedup, but such
-that the maximum overrun is negligible (e.g. much smaller than the "startup cost"). So in the end
-we opted for option 1, which also happens to be simpler to implement.
--}
-
-{- Note [Structure of the step counter]
-The step counter is kept in a 'WordArray', which is 8 'Word8's packed into a single 'Word64'.
-This happens to suit our purposes exactly, as we want to keep a counter for each kind of step
-that we know about (of which there are 7) and one for the total number.
-
-We keep the counters for each step in the first 7 indices, so we can index them simply by using
-the 'Enum' instance of 'StepKind', and the total counter in the last index.
-
-Why use a 'WordArray'? It optimizes well, since GHC can often do quite a lot of constant-folding
-on the bitwise operations that get emitted. We are restricted to counters of size 'Word8', but this
-is fine since we will reset when we get to 200 steps.
-
-The sharp-eyed reader might notice that the benchmarks in 'word-array' show that 'PrimArray'
-seems to be faster! However, we tried that and it was slower overall, we don't know why.
--}
-
 type Slippage = Word8
+
 -- See Note [Cost slippage]
 -- | The default number of slippage (in machine steps) to allow.
 defaultSlippage :: Slippage
@@ -322,49 +193,22 @@ newtype EmitterMode = EmitterMode
     { unEmitterMode :: forall s. ST s ExBudget -> ST s (CekEmitterInfo s)
     }
 
-{- Note [Implicit parameters in the machine]
-The traditional way to pass context into a function is to use 'ReaderT'. However, 'ReaderT' has some
-disadvantages.
-- It requires threading through the context even where you don't need it (every monadic bind)
-- It *can* often be optimized away, but this requires GHC to be somewhat clever and do a lot of
-  case-of-case to lift all the arguments out.
-
-Moreover, if your context is global (i.e. constant across the lifetime of the monad, i.e. you don't
-need 'local'), then you're buying some extra power (the ability to pass in a different context somewhere
-deep inside the computation) which you don't need.
-
-There are three main alternatives:
-- Explicit function parameters. Simple, doesn't get tied up in the Monad operations, *does* still
-present the appearance of letting you do 'local'. But a bit cluttered.
-- Implicit parameters. A bit esoteric, can be bundled up into a constraint synonym and just piped to
-where they're needed, essentially the same as explicit parameters in terms of runtime.
-- Constraints via 'reflection'. Quite esoteric, *does* get you global parameters (within their scope),
-bit of a hassle threading around all the extra type parameters.
-
-We're using implicit parameters for now, which seems to strike a good balance of speed and convenience.
-I haven't tried 'reflection' in detail, but I believe the main thing it would do is to make the parameters
-global - but we already have this for most of the hot functions by making them all local definitions, so
-they don't actually take the context as an argument even at the source level.
--}
-
 -- | Implicit parameter for the builtin runtime.
 type GivenCekRuntime = (?cekRuntime :: (BuiltinsRuntime DefaultFun CekValue))
 -- | Implicit parameter for the log emitter reference.
 type GivenCekEmitter s = (?cekEmitter :: CekEmitter s)
 -- | Implicit parameter for budget spender.
 type GivenCekSpender s = (?cekBudgetSpender :: CekBudgetSpender s)
-type GivenCekSlippage = (?cekSlippage :: Slippage)
 type GivenCekCosts = (?cekCosts :: CekMachineCosts)
 
 -- | Constraint requiring all of the machine's implicit parameters.
-type GivenCekReqs s = (GivenCekRuntime, GivenCekEmitter s, GivenCekSpender s, GivenCekSlippage, GivenCekCosts)
+type GivenCekReqs s = (GivenCekRuntime, GivenCekEmitter s, GivenCekSpender s, GivenCekCosts)
 
 data CekUserError
     -- @plutus-errors@ prevents this from being strict. Not that it matters anyway.
     = CekOutOfExError ExRestrictingBudget -- ^ The final overspent (i.e. negative) budget.
     | CekEvaluationFailure -- ^ Error has been called or a builtin application has failed
     deriving stock (Show, Eq, Generic)
-    deriving anyclass (NFData)
 
 instance HasErrorCode CekUserError where
     errorCode CekEvaluationFailure {} = ErrorCode 37
@@ -379,42 +223,6 @@ newtype CekM s a = CekM
 type CekEvaluationException =
     EvaluationException CekUserError (MachineError DefaultFun) (Term NamedDeBruijn DefaultUni DefaultFun ())
 
--- | The set of constraints we need to be able to print things in universes, which we need in order to throw exceptions.
-type PrettyUni uni fun =
-    ( Closed uni
-    , Typeable uni
-    , Typeable fun
-    )
-
-{- Note [Throwing exceptions in ST]
-This note represents MPJ's best understanding right now, might be wrong.
-
-We use a moderately evil trick to throw exceptions in ST, but unlike the evil trick for catching them, it's hidden.
-
-The evil is that the 'MonadThrow' instance for 'ST' uses 'unsafeIOToST . throwIO'! Sneaky! The author has marked it
-"Trustworthy", no less. However, I believe this to be safe for basically the same reasons as our trick to catch
-exceptions is safe, see Note [Catching exceptions in ST]
--}
-
-{- Note [Catching exceptions in ST]
-This note represents MPJ's best understanding right now, might be wrong.
-
-We use a moderately evil trick to catch exceptions in ST. This uses the unsafe ST <-> IO conversion functions to go into IO,
-catch the exception, and then go back into ST.
-
-Why is this okay? Recall that IO ~= ST RealWorld, i.e. it is just ST with a special thread token. The unsafe conversion functions
-just coerce from one to the other. So the thread token remains the same, it's just that we'll potentially leak it from ST, and we don't
-get ordering guarantees with other IO actions.
-
-But in our case this is okay, because:
-
-1. We do not leak the original ST thread token, since we only pass it into IO and then immediately back again.
-2. We don't have ordering guarantees with other IO actions, but we don't care because we don't do any side effects, we only catch a single kind of exception.
-3. We *do* have ordering guarantees between the throws inside the ST action and the catch, since they are ultimately using the same thread token.
--}
-
--- | Call 'dischargeCekValue' over the received 'CekVal' and feed the resulting 'Term' to
--- 'throwingWithCause' as the cause of the failure.
 throwingDischarged
     :: AReview (EvaluationError CekUserError (MachineError DefaultFun)) t
     -> t
@@ -435,17 +243,6 @@ instance MonadError CekEvaluationException (CekM s) where
         -- underlying 'ST' to it.
         unsafeRunCekM :: CekM s a -> IO a
         unsafeRunCekM = unsafeSTToIO . unCekM
-
--- It would be really nice to define this instance, so that we can use 'makeKnown' directly in
--- the 'CekM' monad without the 'WithEmitterT' nonsense. Unfortunately, GHC doesn't like
--- implicit params in instance contexts. As GHC's docs explain:
---
--- > Reason: exactly which implicit parameter you pick up depends on exactly where you invoke a
--- > function. But the "invocation" of instance declarations is done behind the scenes by the
--- > compiler, so it's hard to figure out exactly where it is done. The easiest thing is to outlaw
--- > the offending types.
--- instance GivenCekEmitter s => MonadEmitter (CekM uni fun s) where
---     emit = emitCek
 
 instance AsEvaluationFailure CekUserError where
     _EvaluationFailure = _EvaluationFailureVia CekEvaluationFailure
@@ -548,7 +345,6 @@ runCekM (MachineParameters costs runtime) (ExBudgetMode getExBudgetInfo) (Emitte
         ?cekEmitter = _cekEmitterInfoEmit
         ?cekBudgetSpender = _exBudgetModeSpender
         ?cekCosts = costs
-        ?cekSlippage = defaultSlippage
     errOrRes <- unCekM $ tryError a
     st <- _exBudgetModeGetFinal
     logs <- _cekEmitterInfoGetFinal
@@ -755,7 +551,7 @@ enterComputeCek = computeCek (toWordArray 0) where
             !unbudgetedStepsTotal = readArray unbudgetedSteps' 7
         -- There's no risk of overflow here, since we only ever increment the total
         -- steps by 1 and then check this condition.
-        if unbudgetedStepsTotal >= ?cekSlippage
+        if unbudgetedStepsTotal >= defaultSlippage
         then spendAccumulatedBudget unbudgetedSteps' >> pure (toWordArray 0)
         else pure unbudgetedSteps'
 
