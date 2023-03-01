@@ -18,17 +18,13 @@ module PureCake.PlutusCore.Builtin.KnownType
     ( KnownTypeError
     , throwKnownTypeErrorWithCause
     , KnownBuiltinTypeIn
-    , KnownBuiltinType
     , MakeKnownM (..)
     , ReadKnownM
-    , liftReadKnownM
     , readKnownConstant
     , MakeKnownIn (..)
     , MakeKnown
     , ReadKnownIn (..)
     , ReadKnown
-    , makeKnownOrFail
-    , readKnownSelf
     ) where
 
 import PlutusPrelude
@@ -42,8 +38,6 @@ import PureCake.PlutusCore.Evaluation.Result
 
 import Control.Monad.Except
 import Data.DList (DList)
-import Data.Either.Extras
-import Data.String
 import Data.Text (Text)
 import GHC.Exts (inline, oneShot)
 import GHC.TypeLits
@@ -52,7 +46,7 @@ import Universe
 -- | A constraint for \"@a@ is a 'ReadKnownIn' and 'MakeKnownIn' by means of being included
 -- in @uni@\".
 type KnownBuiltinTypeIn uni val a =
-    (HasConstantIn uni val, Pretty (SomeTypeIn uni), GEq uni, uni `Contains` a)
+    (HasConstantIn uni val, GEq uni, uni `Contains` a)
 
 -- | A constraint for \"@a@ is a 'ReadKnownIn' and 'MakeKnownIn' by means of being included
 -- in @UniOf term@\".
@@ -248,20 +242,6 @@ throwKnownTypeErrorWithCause cause = \case
     KnownTypeUnliftingError unlErr -> throwingWithCause _UnliftingError unlErr $ Just cause
     KnownTypeEvaluationFailure     -> throwingWithCause _EvaluationFailure () $ Just cause
 
-typeMismatchError
-    :: Pretty (SomeTypeIn uni)
-    => uni (Esc a)
-    -> uni (Esc b)
-    -> UnliftingError
-typeMismatchError uniExp uniAct = fromString $ concat
-    [ "Type mismatch: "
-    , "expected: " ++ display (SomeTypeIn uniExp)
-    , "; actual: " ++ display (SomeTypeIn uniAct)
-    ]
--- Just for tidier Core to get generated, we don't care about performance here, since it's just a
--- failure message and evaluation is about to be shut anyway.
-{-# NOINLINE typeMismatchError #-}
-
 -- | The monad that 'makeKnown' runs in.
 -- Equivalent to @ExceptT KnownTypeError Emitter@, except optimized in two ways:
 --
@@ -335,12 +315,6 @@ instance Monad MakeKnownM where
 -- | The monad that 'readKnown' runs in.
 type ReadKnownM = Either KnownTypeError
 
--- | Lift a 'ReadKnownM' computation into 'MakeKnownM'.
-liftReadKnownM :: ReadKnownM a -> MakeKnownM a
-liftReadKnownM (Left err) = MakeKnownFailure mempty err
-liftReadKnownM (Right x)  = MakeKnownSuccess x
-{-# INLINE liftReadKnownM #-}
-
 -- See Note [Unlifting values of built-in types].
 -- | Convert a constant embedded into a PLC term to the corresponding Haskell value.
 readKnownConstant :: forall val a. KnownBuiltinType val a => val -> ReadKnownM a
@@ -353,7 +327,7 @@ readKnownConstant val = asConstant val >>= oneShot \case
         -- optimize some of the matching away.
         case uniExp `geq` uniAct of
             Just Refl -> pure x
-            Nothing   -> Left . KnownTypeUnliftingError $ typeMismatchError uniExp uniAct
+            Nothing   -> Left . KnownTypeUnliftingError $ coerce ("" :: Text)
 {-# INLINE readKnownConstant #-}
 
 -- See Note [Performance of ReadKnownIn and MakeKnownIn instances].
@@ -388,23 +362,6 @@ class uni ~ UniOf val => ReadKnownIn uni val a where
     {-# INLINE readKnown #-}
 
 type ReadKnown val = ReadKnownIn (UniOf val) val
-
--- | Same as 'makeKnown', but allows for neither emitting nor storing the cause of a failure.
-makeKnownOrFail :: MakeKnownIn uni val a => a -> EvaluationResult val
-makeKnownOrFail x = case makeKnown x of
-    MakeKnownFailure _ _           -> EvaluationFailure
-    MakeKnownSuccess val           -> EvaluationSuccess val
-    MakeKnownSuccessWithLogs _ val -> EvaluationSuccess val
-{-# INLINE makeKnownOrFail #-}
-
--- | Same as 'readKnown', but the cause of a potential failure is the provided term itself.
-readKnownSelf
-    :: ( ReadKnown val a
-       , AsUnliftingError err, AsEvaluationFailure err
-       )
-    => val -> Either (ErrorWithCause err val) a
-readKnownSelf val = fromRightM (throwKnownTypeErrorWithCause val) $ readKnown val
-{-# INLINE readKnownSelf #-}
 
 instance MakeKnownIn uni val a => MakeKnownIn uni val (EvaluationResult a) where
     makeKnown EvaluationFailure     = MakeKnownFailure mempty KnownTypeEvaluationFailure

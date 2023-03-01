@@ -21,7 +21,6 @@ module PureCake.PlutusCore.Builtin.KnownTypeAst
     ) where
 
 import PureCake.PlutusCore.Builtin.Emitter
-import PureCake.PlutusCore.Builtin.KnownKind
 import PureCake.PlutusCore.Builtin.Polymorphism
 import PureCake.PlutusCore.Evaluation.Result
 import PureCake.PlutusCore.Name

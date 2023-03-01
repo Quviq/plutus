@@ -21,7 +21,6 @@ import PlutusPrelude
 
 import PureCake.PlutusCore.Builtin.Elaborate
 import PureCake.PlutusCore.Builtin.HasConstant
-import PureCake.PlutusCore.Builtin.KnownKind
 import PureCake.PlutusCore.Builtin.KnownType
 import PureCake.PlutusCore.Builtin.KnownTypeAst
 import PureCake.PlutusCore.Builtin.Runtime
@@ -286,12 +285,7 @@ instance KnownMonotype val args res => KnownPolytype '[] val args res where
     toPolyF  = toMonoF @val @args @res
     {-# INLINE toPolyF #-}
 
--- Here we unpack an existentially packed @kind@ and constrain it afterwards!
--- So promoted existentials are true sigmas! If we were at the term level, we'd have to pack
--- @kind@ along with the @KnownKind kind@ constraint, otherwise when we unpack the existential,
--- all information is lost and we can't do anything with @kind@.
--- | Every type-level argument becomes a 'TypeSchemeAll'.
-instance (KnownSymbol name, KnownNat uniq, KnownKind kind, KnownPolytype binds val args res) =>
+instance (KnownSymbol name, KnownNat uniq, KnownPolytype binds val args res) =>
             KnownPolytype ('Some ('TyNameRep @kind name uniq) ': binds) val args res where
     knownPolytype = TypeSchemeAll @name @uniq @kind Proxy $ knownPolytype @binds
 

@@ -116,17 +116,6 @@ deriveGCompare ''DefaultUni
 noMoreTypeFunctions :: DefaultUni (Esc (f :: a -> b -> c -> d)) -> any
 noMoreTypeFunctions (f `DefaultUniApply` _) = noMoreTypeFunctions f
 
-instance ToKind DefaultUni where
-    toSingKind DefaultUniInteger        = knownKind
-    toSingKind DefaultUniByteString     = knownKind
-    toSingKind DefaultUniString         = knownKind
-    toSingKind DefaultUniUnit           = knownKind
-    toSingKind DefaultUniBool           = knownKind
-    toSingKind DefaultUniProtoList      = knownKind
-    toSingKind DefaultUniProtoPair      = knownKind
-    toSingKind (DefaultUniApply uniF _) = case toSingKind uniF of _ `SingKindArrow` cod -> cod
-    toSingKind DefaultUniData           = knownKind
-
 instance HasUniApply DefaultUni where
     uniApply = DefaultUniApply
 

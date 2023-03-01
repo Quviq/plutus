@@ -13,18 +13,14 @@
 
 module PureCake.PlutusCore.Builtin.TypeScheme
     ( TypeScheme (..)
-    , typeSchemeToType
     ) where
 
-import PureCake.PlutusCore.Builtin.KnownKind
 import PureCake.PlutusCore.Builtin.KnownType
 import PureCake.PlutusCore.Builtin.KnownTypeAst
 import PureCake.PlutusCore.Core
-import PureCake.PlutusCore.Name
 
 import Data.Kind qualified as GHC (Type)
 import Data.Proxy
-import Data.Text qualified as Text
 import GHC.TypeLits
 import Type.Reflection
 
@@ -63,25 +59,9 @@ data TypeScheme val (args :: [GHC.Type]) res where
         :: (Typeable arg, KnownTypeAst (UniOf val) arg, MakeKnown val arg, ReadKnown val arg)
         => TypeScheme val args res -> TypeScheme val (arg ': args) res
     TypeSchemeAll
-        :: (KnownSymbol text, KnownNat uniq, KnownKind kind)
+        :: (KnownSymbol text, KnownNat uniq)
            -- Here we require the user to manually provide the unique of a type variable.
            -- That's nothing but silly, but I do not see what else we can do with the current design.
         => Proxy '(text, uniq, kind)
         -> TypeScheme val args res
         -> TypeScheme val args res
-
-argProxy :: TypeScheme val (arg ': args) res -> Proxy arg
-argProxy _ = Proxy
-
--- | Convert a 'TypeScheme' to the corresponding 'Type'.
--- Basically, a map from the PHOAS representation to the FOAS one.
-typeSchemeToType :: TypeScheme val args res -> Type TyName (UniOf val) ()
-typeSchemeToType sch@TypeSchemeResult       = toTypeAst sch
-typeSchemeToType sch@(TypeSchemeArrow schB) =
-    TyFun () (toTypeAst $ argProxy sch) $ typeSchemeToType schB
-typeSchemeToType (TypeSchemeAll proxy schK) = case proxy of
-    (_ :: Proxy '(text, uniq, kind)) ->
-        let text = Text.pack $ symbolVal @text Proxy
-            uniq = fromIntegral $ natVal @uniq Proxy
-            a    = TyName $ Name text $ Unique uniq
-        in TyForall () a (demoteKind $ knownKind @kind) $ typeSchemeToType schK
