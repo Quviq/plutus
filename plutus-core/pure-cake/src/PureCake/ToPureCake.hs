@@ -31,6 +31,10 @@ import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as C
 countingStToCake :: PLC.CountingSt -> Cake.CountingSt
 countingStToCake (PLC.CountingSt exBudget) = Cake.CountingSt (exBudgetToCake exBudget)
 
+restrictingStToCake :: PLC.RestrictingSt -> Cake.RestrictingSt
+restrictingStToCake (PLC.RestrictingSt exBudget) =
+  Cake.RestrictingSt (exRestrictingBudgetToCake exBudget)
+
 cekExceptionToCake :: PLC.CekEvaluationException PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun
                    -> Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun
 cekExceptionToCake (PLC.ErrorWithCause e mc) =
@@ -63,6 +67,9 @@ machineErrorToCake = \case
 
 unliftingErrorToCake :: PLC.UnliftingError -> Cake.UnliftingError
 unliftingErrorToCake = coerce
+
+exRestrictingBudgetToCake :: PLC.ExRestrictingBudget -> Cake.ExRestrictingBudget
+exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
 
 exBudgetToCake :: PLC.ExBudget -> Cake.ExBudget
 exBudgetToCake (PLC.ExBudget cpu mem) = Cake.ExBudget (coerce cpu) (coerce mem)

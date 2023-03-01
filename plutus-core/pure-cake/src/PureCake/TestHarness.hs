@@ -11,7 +11,9 @@ import Data.Text
 import PlutusCore.DeBruijn.Internal qualified as PLC
 import PlutusCore.Default.Builtins qualified as PLC
 import PlutusCore.Default.Universe qualified as PLC
+import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
 import PlutusCore.Evaluation.Machine.ExBudgetingDefaults qualified as PLC
+import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
 import PlutusCore.Quote
 import PlutusCore.TypeCheck qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
@@ -48,26 +50,26 @@ logEmitter = error "TODO"
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
        -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
                    (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
-          , Cake.CountingSt
+          , Cake.RestrictingSt
           , [Text] )
 runPLC tm =
   let (e, c, l) = PLC.runCekDeBruijn PLC.defaultCekParameters
-                                     PLC.counting
+                                     (PLC.restricting testBudget)
                                      PLC.logEmitter
                                      tm
   in ( either (Left . cekExceptionToCake) (Right . termToCake) e
-     , countingStToCake c
+     , restrictingStToCake c
      , l
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
         -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
                     (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
-           , Cake.CountingSt
+           , Cake.RestrictingSt
            , [Text] )
 runCake =
   Cake.runCekDeBruijn Cake.defaultCekParameters
-                      Cake.counting
+                      (Cake.restricting $ exRestrictingBudgetToCake testBudget)
                       noEmitter
   . termToCake
 
@@ -84,3 +86,7 @@ prop_run_PLC_Cake =
     in case etm' of
         Left _    -> error "Something wrong"
         Right tm' -> runPLC tm' === runCake tm'
+
+-- TODO: no clue about these numbers
+testBudget :: PLC.ExRestrictingBudget
+testBudget = PLC.ExRestrictingBudget $ PLC.ExBudget (PLC.ExCPU 100000) (PLC.ExMemory 100000)
