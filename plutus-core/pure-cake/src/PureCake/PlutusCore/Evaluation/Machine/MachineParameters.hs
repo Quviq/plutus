@@ -17,7 +17,6 @@ import Control.DeepSeq
 import Control.Lens
 import GHC.Exts (inline)
 import GHC.Generics
-import GHC.Types (Type)
 import NoThunks.Class
 
 data CostModel machinecosts builtincosts =
