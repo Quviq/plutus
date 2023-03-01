@@ -22,6 +22,8 @@ import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as C
 
 import PureCake.ToPureCake
 
+import Test.QuickCheck
+
 noEmitter :: Cake.EmitterMode uni fun
 noEmitter = Cake.EmitterMode $ \_ -> pure $ Cake.CekEmitterInfo (\_ -> pure ()) (pure mempty)
 
@@ -29,18 +31,23 @@ logEmitter :: Cake.EmitterMode uni fun
 logEmitter = error "TODO"
 
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-       -> (Either (PLC.CekEvaluationException PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun)
-                  (PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ())
-          , PLC.CountingSt
+       -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
+                   (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
+          , Cake.CountingSt
           , [Text] )
-runPLC =
-  PLC.runCekDeBruijn PLC.defaultCekParameters
-                     PLC.counting
-                     PLC.logEmitter
+runPLC tm =
+  let (e, c, l) = PLC.runCekDeBruijn PLC.defaultCekParameters
+                                     PLC.counting
+                                     PLC.logEmitter
+                                     tm
+  in ( either (Left . cekExceptionToCake) (Right . termToCake) e
+     , countingStToCake c
+     , l
+     )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
         -> ( Either (Cake.CekEvaluationException Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun)
-                   (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
+                    (Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ())
            , Cake.CountingSt
            , [Text] )
 runCake =
@@ -49,4 +56,6 @@ runCake =
                       noEmitter
   . termToCake
 
-
+prop_run_PLC_Cake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun () -> Property
+prop_run_PLC_Cake tm =
+  runPLC tm === runCake tm

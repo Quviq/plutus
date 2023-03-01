@@ -19,7 +19,6 @@ module PureCake.PlutusCore.Evaluation.Machine.ExMemory
 
 import PlutusCore.Data
 import PlutusPrelude
-import PureCake.PlutusCore.Pretty
 
 import Codec.Serialise (Serialise)
 import Control.Monad.RWS.Strict
