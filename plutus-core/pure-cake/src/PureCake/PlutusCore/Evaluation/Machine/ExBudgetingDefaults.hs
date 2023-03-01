@@ -4,14 +4,7 @@
 {-# LANGUAGE TypeFamilies    #-}
 
 module PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
-    ( defaultBuiltinsRuntime
-    , defaultCekCostModel
-    , defaultCekMachineCosts
-    , defaultCekParameters
-    , defaultCostModelParams
-    , defaultBuiltinCostModel
-    , unitCekMachineCosts
-    , unitCekParameters
+    ( defaultCekParameters
     )
 
 where
