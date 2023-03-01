@@ -29,7 +29,6 @@ import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
 
-
 import PureCake.ToPureCake
 
 import Test.QuickCheck
