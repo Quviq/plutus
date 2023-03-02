@@ -28,13 +28,9 @@ import PureCake.PlutusCore.Evaluation.Result
 
 import Codec.Serialise (serialise)
 import Data.ByteString qualified as BS
-import Data.ByteString.Hash qualified as Hash
 import Data.ByteString.Lazy qualified as BSL
 import Data.Ix
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8', encodeUtf8)
-import PureCake.Crypto (verifyEcdsaSecp256k1Signature, verifyEd25519Signature_V1, verifyEd25519Signature_V2,
-                        verifySchnorrSecp256k1Signature)
 
 data DefaultFun
     -- Integers
@@ -57,38 +53,12 @@ data DefaultFun
     | EqualsByteString
     | LessThanByteString
     | LessThanEqualsByteString
-    -- Cryptography and hashes
-    | Sha2_256
-    | Sha3_256
-    | Blake2b_256
-    | VerifyEd25519Signature  -- formerly verifySignature
-    | VerifyEcdsaSecp256k1Signature
-    | VerifySchnorrSecp256k1Signature
     -- Strings
     | AppendString
     | EqualsString
-    | EncodeUtf8
-    | DecodeUtf8
     -- Bool
     | IfThenElse
-    -- Unit
-    | ChooseUnit
-    -- Tracing
-    | Trace
-    -- Pairs
-    | FstPair
-    | SndPair
-    -- Lists
-    | ChooseList
-    | MkCons
-    | HeadList
-    | TailList
-    | NullList
     -- Data
-    -- See Note [Pattern matching on built-in types].
-    -- It is convenient to have a "choosing" function for a data type that has more than two
-    -- constructors to get pattern matching over it and we may end up having multiple such data
-    -- types, hence we include the name of the data type as a suffix.
     | ChooseData
     | ConstrData
     | MapData
@@ -102,13 +72,6 @@ data DefaultFun
     | UnBData
     | EqualsData
     | SerialiseData
-    -- Misc monomorphized constructors.
-    -- We could simply replace those with constants, but we use built-in functions for consistency
-    -- with monomorphic built-in types. Polymorphic built-in constructors are generally problematic,
-    -- See note [Representable built-in functions over polymorphic built-in types].
-    | MkPairData
-    | MkNilData
-    | MkNilPairData
     deriving stock (Show, Eq, Ord, Enum, Bounded, Generic, Ix)
     deriving anyclass (NFData, Hashable)
 
@@ -220,54 +183,6 @@ instance uni ~ DefaultUni => ToBuiltinMeaning uni DefaultFun where
         makeBuiltinMeaning
             ((<=) @BS.ByteString)
             (runCostingFunTwoArguments . paramLessThanEqualsByteString)
-    -- Cryptography and hashes
-    toBuiltinMeaning _ver Sha2_256 =
-        makeBuiltinMeaning
-            Hash.sha2_256
-            (runCostingFunOneArgument . paramSha2_256)
-    toBuiltinMeaning _ver Sha3_256 =
-        makeBuiltinMeaning
-            Hash.sha3_256
-            (runCostingFunOneArgument . paramSha3_256)
-    toBuiltinMeaning _ver Blake2b_256 =
-        makeBuiltinMeaning
-            Hash.blake2b_256
-            (runCostingFunOneArgument . paramBlake2b_256)
-    toBuiltinMeaning ver VerifyEd25519Signature =
-        let verifyEd25519Signature =
-                case ver of
-                  DefaultFunV1 -> verifyEd25519Signature_V1
-                  _            -> verifyEd25519Signature_V2
-        in makeBuiltinMeaning
-           verifyEd25519Signature
-           -- Benchmarks indicate that the two versions have very similar
-           -- execution times, so it's safe to use the same costing function for
-           -- both.
-           (runCostingFunThreeArguments . paramVerifyEd25519Signature)
-    {- Note [ECDSA secp256k1 signature verification].  An ECDSA signature
-       consists of a pair of values (r,s), and for each value of r there are in
-       fact two valid values of s, one effectively the negative of the other.
-       The Bitcoin implementation that underlies `verifyEcdsaSecp256k1Signature`
-       expects that the lower of the two possible values of the s component of
-       the signature is used, returning `false` immediately if that's not the
-       case.  It appears that this restriction is peculiar to Bitcoin, and ECDSA
-       schemes in general don't require it.  Thus this function may be more
-       restrictive than expected.  See
-
-          https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki#LOW_S
-
-       and the implementation of secp256k1_ecdsa_verify in
-
-          https://github.com/bitcoin-core/secp256k1.
-     -}
-    toBuiltinMeaning _ver VerifyEcdsaSecp256k1Signature =
-        makeBuiltinMeaning
-            verifyEcdsaSecp256k1Signature
-            (runCostingFunThreeArguments . paramVerifyEcdsaSecp256k1Signature)
-    toBuiltinMeaning _ver VerifySchnorrSecp256k1Signature =
-        makeBuiltinMeaning
-            verifySchnorrSecp256k1Signature
-            (runCostingFunThreeArguments . paramVerifySchnorrSecp256k1Signature)
     -- Strings
     toBuiltinMeaning _ver AppendString =
         makeBuiltinMeaning
@@ -277,116 +192,11 @@ instance uni ~ DefaultUni => ToBuiltinMeaning uni DefaultFun where
         makeBuiltinMeaning
             ((==) @Text)
             (runCostingFunTwoArguments . paramEqualsString)
-    toBuiltinMeaning _ver EncodeUtf8 =
-        makeBuiltinMeaning
-            encodeUtf8
-            (runCostingFunOneArgument . paramEncodeUtf8)
-    toBuiltinMeaning _ver DecodeUtf8 =
-        makeBuiltinMeaning
-            (reoption @_ @EvaluationResult . decodeUtf8')
-            (runCostingFunOneArgument . paramDecodeUtf8)
     -- Bool
     toBuiltinMeaning _ver IfThenElse =
         makeBuiltinMeaning
             (\b x y -> if b then x else y)
             (runCostingFunThreeArguments . paramIfThenElse)
-    -- Unit
-    toBuiltinMeaning _ver ChooseUnit =
-        makeBuiltinMeaning
-            (\() a -> a)
-            (runCostingFunTwoArguments . paramChooseUnit)
-    -- Tracing
-    toBuiltinMeaning _ver Trace =
-        makeBuiltinMeaning
-            (\text a -> a <$ emit text)
-            (runCostingFunTwoArguments . paramTrace)
-    -- Pairs
-    toBuiltinMeaning _ver FstPair =
-        makeBuiltinMeaning
-            fstPlc
-            (runCostingFunOneArgument . paramFstPair)
-        where
-          fstPlc :: SomeConstant uni (a, b) -> EvaluationResult (Opaque val a)
-          fstPlc (SomeConstant (Some (ValueOf uniPairAB xy))) = do
-              DefaultUniPair uniA _ <- pure uniPairAB
-              pure . fromValueOf uniA $ fst xy
-          {-# INLINE fstPlc #-}
-    toBuiltinMeaning _ver SndPair =
-        makeBuiltinMeaning
-            sndPlc
-            (runCostingFunOneArgument . paramSndPair)
-        where
-          sndPlc :: SomeConstant uni (a, b) -> EvaluationResult (Opaque val b)
-          sndPlc (SomeConstant (Some (ValueOf uniPairAB xy))) = do
-              DefaultUniPair _ uniB <- pure uniPairAB
-              pure . fromValueOf uniB $ snd xy
-          {-# INLINE sndPlc #-}
-    -- Lists
-    toBuiltinMeaning _ver ChooseList =
-        makeBuiltinMeaning
-            choosePlc
-            (runCostingFunThreeArguments . paramChooseList)
-        where
-          choosePlc :: SomeConstant uni [a] -> b -> b -> EvaluationResult b
-          choosePlc (SomeConstant (Some (ValueOf uniListA xs))) a b = do
-            DefaultUniList _ <- pure uniListA
-            pure $ case xs of
-                []    -> a
-                _ : _ -> b
-          {-# INLINE choosePlc #-}
-    toBuiltinMeaning _ver MkCons =
-        makeBuiltinMeaning
-            consPlc
-            (runCostingFunTwoArguments . paramMkCons)
-        where
-          consPlc
-              :: SomeConstant uni a -> SomeConstant uni [a] -> EvaluationResult (Opaque val [a])
-          consPlc
-            (SomeConstant (Some (ValueOf uniA x)))
-            (SomeConstant (Some (ValueOf uniListA xs))) = do
-                DefaultUniList uniA' <- pure uniListA
-                -- Checking that the type of the constant is the same as the type of the elements
-                -- of the unlifted list. Note that there's no way we could enforce this statically
-                -- since in UPLC one can create an ill-typed program that attempts to prepend
-                -- a value of the wrong type to a list.
-                -- Should that rather give us an 'UnliftingError'? For that we need
-                -- https://github.com/input-output-hk/plutus/pull/3035
-                Just Refl <- pure $ uniA `geq` uniA'
-                pure . fromValueOf uniListA $ x : xs
-          {-# INLINE consPlc #-}
-    toBuiltinMeaning _ver HeadList =
-        makeBuiltinMeaning
-            headPlc
-            (runCostingFunOneArgument . paramHeadList)
-        where
-          headPlc :: SomeConstant uni [a] -> EvaluationResult (Opaque val a)
-          headPlc (SomeConstant (Some (ValueOf uniListA xs))) = do
-              DefaultUniList uniA <- pure uniListA
-              x : _ <- pure xs
-              pure $ fromValueOf uniA x
-          {-# INLINE headPlc #-}
-    toBuiltinMeaning _ver TailList =
-        makeBuiltinMeaning
-            tailPlc
-            (runCostingFunOneArgument . paramTailList)
-        where
-          tailPlc :: SomeConstant uni [a] -> EvaluationResult (Opaque val [a])
-          tailPlc (SomeConstant (Some (ValueOf uniListA xs))) = do
-              DefaultUniList _ <- pure uniListA
-              _ : xs' <- pure xs
-              pure $ fromValueOf uniListA xs'
-          {-# INLINE tailPlc #-}
-    toBuiltinMeaning _ver NullList =
-        makeBuiltinMeaning
-            nullPlc
-            (runCostingFunOneArgument . paramNullList)
-        where
-          nullPlc :: SomeConstant uni [a] -> EvaluationResult Bool
-          nullPlc (SomeConstant (Some (ValueOf uniListA xs))) = do
-              DefaultUniList _ <- pure uniListA
-              pure $ null xs
-          {-# INLINE nullPlc #-}
-
     -- Data
     toBuiltinMeaning _ver ChooseData =
         makeBuiltinMeaning
@@ -458,27 +268,6 @@ instance uni ~ DefaultUni => ToBuiltinMeaning uni DefaultFun where
         makeBuiltinMeaning
             (BSL.toStrict . serialise @Data)
             (runCostingFunOneArgument . paramSerialiseData)
-    -- Misc constructors
-    toBuiltinMeaning _ver MkPairData =
-        makeBuiltinMeaning
-            ((,) @Data @Data)
-            (runCostingFunTwoArguments . paramMkPairData)
-    toBuiltinMeaning _ver MkNilData =
-        -- Nullary built-in functions don't work, so we need a unit argument.
-        -- We don't really need this built-in function, see Note [Constants vs built-in functions],
-        -- but we keep it around for historical reasons and convenience.
-        makeBuiltinMeaning
-            (\() -> [] @Data)
-            (runCostingFunOneArgument . paramMkNilData)
-    toBuiltinMeaning _ver MkNilPairData =
-        -- Nullary built-in functions don't work, so we need a unit argument.
-        -- We don't really need this built-in function, see Note [Constants vs built-in functions],
-        -- but we keep it around for historical reasons and convenience.
-        makeBuiltinMeaning
-            (\() -> [] @(Data,Data))
-            (runCostingFunOneArgument . paramMkNilPairData)
-    -- See Note [Inlining meanings of builtins].
-    {-# INLINE toBuiltinMeaning #-}
 
 instance Default (BuiltinVersion DefaultFun) where
     def = DefaultFunV2

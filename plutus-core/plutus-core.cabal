@@ -359,7 +359,6 @@ library purecake
   exposed-modules:
     PureCake.TestHarness
   other-modules:
-    PureCake.Crypto
     PureCake.PlutusCore.Builtin
     PureCake.PlutusCore.Builtin.Elaborate
     PureCake.PlutusCore.Builtin.Emitter
