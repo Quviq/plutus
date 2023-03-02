@@ -285,13 +285,6 @@ instance KnownMonotype val args res => KnownPolytype '[] val args res where
     toPolyF  = toMonoF @val @args @res
     {-# INLINE toPolyF #-}
 
-instance (KnownSymbol name, KnownNat uniq, KnownPolytype binds val args res) =>
-            KnownPolytype ('Some ('TyNameRep @kind name uniq) ': binds) val args res where
-    knownPolytype = TypeSchemeAll @name @uniq @kind Proxy $ knownPolytype @binds
-
-    toPolyF = BuiltinExpectForce . toPolyF @binds @val @args @res
-    {-# INLINE toPolyF #-}
-
 -- | Ensure a built-in function is not nullary and throw a nice error otherwise.
 type ThrowOnBothEmpty :: [Some TyNameRep] -> [GHC.Type] -> Bool -> GHC.Type -> GHC.Constraint
 type family ThrowOnBothEmpty binds args isBuiltin a where

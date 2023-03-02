@@ -56,10 +56,7 @@ data DefaultFun
     -- Strings
     | AppendString
     | EqualsString
-    -- Bool
-    | IfThenElse
     -- Data
-    | ChooseData
     | ConstrData
     | MapData
     | ListData
@@ -192,24 +189,6 @@ instance uni ~ DefaultUni => ToBuiltinMeaning uni DefaultFun where
         makeBuiltinMeaning
             ((==) @Text)
             (runCostingFunTwoArguments . paramEqualsString)
-    -- Bool
-    toBuiltinMeaning _ver IfThenElse =
-        makeBuiltinMeaning
-            (\b x y -> if b then x else y)
-            (runCostingFunThreeArguments . paramIfThenElse)
-    -- Data
-    toBuiltinMeaning _ver ChooseData =
-        makeBuiltinMeaning
-            (\d
-              xConstr
-              xMap xList xI xB ->
-                  case d of
-                    Constr {} -> xConstr
-                    Map    {} -> xMap
-                    List   {} -> xList
-                    I      {} -> xI
-                    B      {} -> xB)
-            (runCostingFunSixArguments . paramChooseData)
     toBuiltinMeaning _ver ConstrData =
         makeBuiltinMeaning
             Constr

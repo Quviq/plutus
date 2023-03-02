@@ -17,7 +17,6 @@ import Control.DeepSeq
 import Control.Lens
 import GHC.Exts (inline)
 import GHC.Generics
-import NoThunks.Class
 
 data CostModel machinecosts builtincosts =
     CostModel {
@@ -32,7 +31,7 @@ data MachineParameters machinecosts val =
     , builtinsRuntime :: BuiltinsRuntime DefaultFun val
     }
     deriving stock Generic
-    deriving anyclass (NFData, NoThunks)
+    deriving anyclass (NFData)
 
 mkMachineParameters ::
     ( CostingPart DefaultUni DefaultFun ~ builtincosts

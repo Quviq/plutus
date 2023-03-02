@@ -10,7 +10,6 @@ import PureCake.PlutusCore.Builtin.KnownType
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 
 import Control.DeepSeq
-import NoThunks.Class
 
 -- | A 'BuiltinRuntime' represents a possibly partial builtin application.
 -- We get an initial 'BuiltinRuntime' representing an empty builtin application (i.e. just the
@@ -33,20 +32,6 @@ data BuiltinRuntime val
     = BuiltinResult ExBudget ~(MakeKnownM val)
     | BuiltinExpectArgument (val -> BuiltinRuntime val)
     | BuiltinExpectForce (BuiltinRuntime val)
-
-instance NoThunks (BuiltinRuntime val) where
-    wNoThunks ctx = \case
-        -- Unreachable, because we don't allow nullary builtins and the 'BuiltinArrow' case only
-        -- checks for WHNF without recursing. Hence we can throw if we reach this clause somehow.
-        BuiltinResult _ _          -> pure . Just $ ThunkInfo ctx
-        -- This one doesn't do much. It only checks that the function stored in the 'BuiltinArrow'
-        -- is in WHNF. The function may contain thunks inside of it. Not sure if it's possible to do
-        -- better, since the final 'BuiltinResult' contains a thunk for the result of the builtin
-        -- application anyway.
-        BuiltinExpectArgument f    -> noThunks ctx f
-        BuiltinExpectForce runtime -> noThunks ctx runtime
-
-    showTypeOf = const "PlutusCore.Builtin.Runtime.BuiltinRuntime"
 
 instance NFData (BuiltinRuntime val) where
     -- 'BuiltinRuntime' is strict (verified by the 'NoThunks' tests), hence we only need to force
@@ -71,13 +56,6 @@ data BuiltinsRuntime fun val = BuiltinsRuntime
 instance (Bounded fun, Enum fun) => NFData (BuiltinsRuntime fun val) where
     -- Force every 'BuiltinRuntime' stored in the environment.
     rnf (BuiltinsRuntime env) = foldr (\fun res -> env fun `seq` res) () enumerate
-
-instance (Bounded fun, Enum fun) => NoThunks (BuiltinsRuntime fun val) where
-    -- Ensure that every 'BuiltinRuntime' doesn't contain thunks after forcing it initially
-    -- (we can't avoid the initial forcing, because we can't lookup the 'BuiltinRuntime' without
-    -- forcing it, see https://stackoverflow.com/q/63441862).
-    wNoThunks ctx (BuiltinsRuntime env) = allNoThunks $ map (wNoThunks ctx . env) enumerate
-    showTypeOf = const "PlutusCore.Builtin.Runtime.BuiltinsRuntime"
 
 -- | Look up the runtime info of a built-in function during evaluation.
 lookupBuiltin :: fun -> BuiltinsRuntime fun val -> BuiltinRuntime val

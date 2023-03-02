@@ -103,8 +103,6 @@ cakeToFun = \case
   Cake.LessThanEqualsByteString -> PLC.LessThanEqualsByteString
   Cake.AppendString             -> PLC.AppendString
   Cake.EqualsString             -> PLC.EqualsString
-  Cake.IfThenElse               -> PLC.IfThenElse
-  Cake.ChooseData               -> PLC.ChooseData
   Cake.ConstrData               -> PLC.ConstrData
   Cake.MapData                  -> PLC.MapData
   Cake.ListData                 -> PLC.ListData
@@ -140,8 +138,6 @@ funToCake = \case
   PLC.LessThanEqualsByteString -> Cake.LessThanEqualsByteString
   PLC.AppendString             -> Cake.AppendString
   PLC.EqualsString             -> Cake.EqualsString
-  PLC.IfThenElse               -> Cake.IfThenElse
-  PLC.ChooseData               -> Cake.ChooseData
   PLC.ConstrData               -> Cake.ConstrData
   PLC.MapData                  -> Cake.MapData
   PLC.ListData                 -> Cake.ListData
