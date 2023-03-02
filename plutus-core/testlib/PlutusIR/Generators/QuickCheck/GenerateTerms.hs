@@ -251,7 +251,10 @@ genTerm mty = checkInvariants $ do
       [ (1, genError mty) ]                                        ++
       [ (10, genConst mty)    | canConst mty ]                     ++
       [ (10, genDatLet mty)   | YesEscape <- [esc] ]               ++
-      [ (10, genIfTrace)      | isNothing mty ]                    ++
+      -- NOTE: We don't generate builtin functions in the tests of the
+      -- purecake code yet and we have to be careful about what builtins
+      -- we generate.
+      -- [ (10, genIfTrace)      | isNothing mty ]                    ++
       [ (customF, customG mty) ]
   where
 
@@ -277,9 +280,10 @@ genTerm mty = checkInvariants $ do
     funTypeView _                                   = Nothing
 
     -- Generate builtin ifthenelse and trace calls
-    genIfTrace = do
-      fun <- liftGen $ elements [IfThenElse, Trace]
-      pure (typeOfBuiltinFunction def fun, Builtin () fun)
+    -- NOTE: we don't do this here for reasons
+    -- genIfTrace = do
+    --   fun <- liftGen $ elements [IfThenElse, Trace]
+    --   pure (typeOfBuiltinFunction def fun, Builtin () fun)
 
     genError Nothing = do
       ty <- genType $ Type ()
