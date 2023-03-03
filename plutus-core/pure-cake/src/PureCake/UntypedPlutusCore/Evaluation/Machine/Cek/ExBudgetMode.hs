@@ -8,9 +8,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
-    ( ExBudgetMode (..)
-    , RestrictingSt (..)
-    , Hashable
+    ( RestrictingSt (..)
     , restricting
     )
 where
@@ -24,13 +22,11 @@ import PureCake.PlutusCore.Evaluation.Machine.Exception
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExCPU (..), ExMemory (..))
 
 import Control.Monad.Except
-import Data.Hashable (Hashable)
 import Data.Primitive.PrimArray
 import Data.SatInt
 
 newtype RestrictingSt = RestrictingSt ExRestrictingBudget
     deriving stock (Eq, Show)
-    deriving newtype (Semigroup, Monoid, NFData)
 
 -- | For execution, to avoid overruns.
 restricting :: ExRestrictingBudget -> ExBudgetMode RestrictingSt

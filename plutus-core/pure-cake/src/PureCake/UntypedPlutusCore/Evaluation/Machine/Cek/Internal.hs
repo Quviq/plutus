@@ -46,18 +46,17 @@ import PureCake.PlutusCore.Default.Universe
 import ErrorCode (ErrorCode (..), HasErrorCode (..))
 import PlutusPrelude (Generic, coerce)
 
-import PureCake.UntypedPlutusCore.Core (Term (..), UniOf)
+import PureCake.UntypedPlutusCore.Core (Term (..))
 
 
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
-import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasConstant (..))
+import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime)
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), ExBudgetBuiltin (..), ExRestrictingBudget (..))
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), EvaluationException,
                                                          MachineError (..), _MachineError,
-                                                         throwNotAConstant, throwingWithCause, throwing_)
-import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExMemoryUsage (..))
+                                                         throwingWithCause, throwing_)
 import PureCake.PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
 import PureCake.PlutusCore.Evaluation.Result (AsEvaluationFailure (..), EvaluationResult (..), _EvaluationFailureVia)
 
@@ -296,35 +295,12 @@ dischargeCekValue = \case
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
     -- VBuiltin _ term _                    -> term
 
-type instance UniOf CekValue = DefaultUni
-
-instance HasConstant CekValue where
-    asConstant (VCon val) = pure val
-    asConstant _          = throwNotAConstant
-
-    fromConstant = VCon
-
-{-|
-The context in which the machine operates.
-
-Morally, this is a stack of frames, but we use the "intrusive list" representation so that
-we can match on context and the top frame in a single, strict pattern match.
--}
 data Context
     = FrameApplyFun !CekValue !Context
     | FrameApplyArg !CekValEnv !(Term NamedDeBruijn DefaultUni DefaultFun ()) !Context
     | FrameForce !Context
     | NoFrame
     deriving stock (Show)
-
--- See Note [ExMemoryUsage instances for non-constants].
-instance ExMemoryUsage CekValue where
-    memoryUsage = \case
-        VCon c      -> memoryUsage c
-        VDelay {}   -> 1
-        VLamAbs {}  -> 1
-        -- VBuiltin {} -> 1
-    {-# INLINE memoryUsage #-}
 
 -- | A 'MonadError' version of 'try'.
 tryError :: MonadError e m => m a -> m (Either e a)

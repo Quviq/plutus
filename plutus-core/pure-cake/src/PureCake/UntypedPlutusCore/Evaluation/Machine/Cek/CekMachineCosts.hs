@@ -41,7 +41,6 @@ data CekMachineCosts =
     -- happen if calling 'Error' caused the budget to be exceeded?
     }
     deriving stock (Eq, Show, Generic, Lift)
-    deriving anyclass (NFData)
     deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier LowerIntialCharacter] CekMachineCosts
 
 -- Charge a unit CPU cost for AST nodes: this allows us to count the number of

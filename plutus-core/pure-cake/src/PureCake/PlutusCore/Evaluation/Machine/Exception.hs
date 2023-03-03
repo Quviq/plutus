@@ -23,7 +23,6 @@ module PureCake.PlutusCore.Evaluation.Machine.Exception
     , AsEvaluationError (..)
     , ErrorWithCause (..)
     , EvaluationException
-    , throwNotAConstant
     , mapCauseInMachineException
     , throwing
     , throwing_

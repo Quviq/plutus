@@ -360,14 +360,7 @@ library purecake
     PureCake.TestHarness
   other-modules:
     PureCake.PlutusCore.Builtin
-    PureCake.PlutusCore.Builtin.Elaborate
     PureCake.PlutusCore.Builtin.Emitter
-    PureCake.PlutusCore.Builtin.HasConstant
-    PureCake.PlutusCore.Builtin.KnownType
-    PureCake.PlutusCore.Builtin.KnownTypeAst
-    PureCake.PlutusCore.Builtin.Polymorphism
-    PureCake.PlutusCore.Builtin.Runtime
-    PureCake.PlutusCore.Core
     PureCake.PlutusCore.Core.Type
     PureCake.PlutusCore.DeBruijn
     PureCake.PlutusCore.Default.Builtins

@@ -141,7 +141,6 @@ module PureCake.PlutusCore.Evaluation.Machine.ExBudget
     , ExBudgetBuiltin(..)
     , ExRestrictingBudget(..)
     , LowerIntialCharacter
-    , enormousBudget
     )
 where
 
@@ -177,7 +176,6 @@ instance ExBudgetBuiltin fun () where
 
 data ExBudget = ExBudget { exBudgetCPU :: ExCPU, exBudgetMemory :: ExMemory }
     deriving stock (Eq, Show, Generic, Lift)
-    deriving anyclass (PrettyBy config, NFData, NoThunks, Serialise)
     deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier LowerIntialCharacter] ExBudget
     -- LowerIntialCharacter won't actually do anything here, but let's have it in case we change the field names.
 
@@ -196,21 +194,7 @@ instance Semigroup ExBudget where
 instance Monoid ExBudget where
     mempty = ExBudget mempty mempty
 
-instance Pretty ExBudget where
-    pretty (ExBudget cpu memory) = parens $ fold
-        [ "{ cpu: ", pretty cpu, line
-        , "| mem: ", pretty memory, line
-        , "}"
-        ]
-
 newtype ExRestrictingBudget = ExRestrictingBudget
     { unExRestrictingBudget :: ExBudget
     } deriving stock (Show, Eq)
       deriving newtype (Semigroup, Monoid)
-      deriving newtype (Pretty, PrettyBy config, NFData)
-
--- | When we want to just evaluate the program we use the 'Restricting' mode with an enormous
--- budget, so that evaluation costs of on-chain budgeting are reflected accurately in benchmarks.
-enormousBudget :: ExRestrictingBudget
-enormousBudget = ExRestrictingBudget $ ExBudget (ExCPU maxInt) (ExMemory maxInt)
-                 where maxInt = fromIntegral (maxBound ::Int)
