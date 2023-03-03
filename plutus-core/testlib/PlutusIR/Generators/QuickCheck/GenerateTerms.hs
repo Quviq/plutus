@@ -42,12 +42,10 @@ import Control.Lens ((<&>))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Bifunctor
-import Data.Default.Class
 import Data.Either
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)

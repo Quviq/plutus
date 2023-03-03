@@ -2,6 +2,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE PolyKinds      #-}
+{-# LANGUAGE EmptyCase      #-}
 module PureCake.ToPureCake where
 
 import Data.Coerce
@@ -83,73 +84,9 @@ termToCake = \ case
 
 cakeToFun :: Cake.DefaultFun -> PLC.DefaultFun
 cakeToFun = \case
-  Cake.AddInteger               -> PLC.AddInteger
-  Cake.SubtractInteger          -> PLC.SubtractInteger
-  Cake.MultiplyInteger          -> PLC.MultiplyInteger
-  Cake.DivideInteger            -> PLC.DivideInteger
-  Cake.QuotientInteger          -> PLC.QuotientInteger
-  Cake.RemainderInteger         -> PLC.RemainderInteger
-  Cake.ModInteger               -> PLC.ModInteger
-  Cake.EqualsInteger            -> PLC.EqualsInteger
-  Cake.LessThanInteger          -> PLC.LessThanInteger
-  Cake.LessThanEqualsInteger    -> PLC.LessThanEqualsInteger
-  Cake.AppendByteString         -> PLC.AppendByteString
-  Cake.ConsByteString           -> PLC.ConsByteString
-  Cake.SliceByteString          -> PLC.SliceByteString
-  Cake.LengthOfByteString       -> PLC.LengthOfByteString
-  Cake.IndexByteString          -> PLC.IndexByteString
-  Cake.EqualsByteString         -> PLC.EqualsByteString
-  Cake.LessThanByteString       -> PLC.LessThanByteString
-  Cake.LessThanEqualsByteString -> PLC.LessThanEqualsByteString
-  Cake.AppendString             -> PLC.AppendString
-  Cake.EqualsString             -> PLC.EqualsString
-  Cake.ConstrData               -> PLC.ConstrData
-  Cake.MapData                  -> PLC.MapData
-  Cake.ListData                 -> PLC.ListData
-  Cake.IData                    -> PLC.IData
-  Cake.BData                    -> PLC.BData
-  Cake.UnConstrData             -> PLC.UnConstrData
-  Cake.UnMapData                -> PLC.UnMapData
-  Cake.UnListData               -> PLC.UnListData
-  Cake.UnIData                  -> PLC.UnIData
-  Cake.UnBData                  -> PLC.UnBData
-  Cake.EqualsData               -> PLC.EqualsData
-  Cake.SerialiseData            -> PLC.SerialiseData
 
 funToCake :: PLC.DefaultFun -> Cake.DefaultFun
 funToCake = \case
-  PLC.AddInteger               -> Cake.AddInteger
-  PLC.SubtractInteger          -> Cake.SubtractInteger
-  PLC.MultiplyInteger          -> Cake.MultiplyInteger
-  PLC.DivideInteger            -> Cake.DivideInteger
-  PLC.QuotientInteger          -> Cake.QuotientInteger
-  PLC.RemainderInteger         -> Cake.RemainderInteger
-  PLC.ModInteger               -> Cake.ModInteger
-  PLC.EqualsInteger            -> Cake.EqualsInteger
-  PLC.LessThanInteger          -> Cake.LessThanInteger
-  PLC.LessThanEqualsInteger    -> Cake.LessThanEqualsInteger
-  PLC.AppendByteString         -> Cake.AppendByteString
-  PLC.ConsByteString           -> Cake.ConsByteString
-  PLC.SliceByteString          -> Cake.SliceByteString
-  PLC.LengthOfByteString       -> Cake.LengthOfByteString
-  PLC.IndexByteString          -> Cake.IndexByteString
-  PLC.EqualsByteString         -> Cake.EqualsByteString
-  PLC.LessThanByteString       -> Cake.LessThanByteString
-  PLC.LessThanEqualsByteString -> Cake.LessThanEqualsByteString
-  PLC.AppendString             -> Cake.AppendString
-  PLC.EqualsString             -> Cake.EqualsString
-  PLC.ConstrData               -> Cake.ConstrData
-  PLC.MapData                  -> Cake.MapData
-  PLC.ListData                 -> Cake.ListData
-  PLC.IData                    -> Cake.IData
-  PLC.BData                    -> Cake.BData
-  PLC.UnConstrData             -> Cake.UnConstrData
-  PLC.UnMapData                -> Cake.UnMapData
-  PLC.UnListData               -> Cake.UnListData
-  PLC.UnIData                  -> Cake.UnIData
-  PLC.UnBData                  -> Cake.UnBData
-  PLC.EqualsData               -> Cake.EqualsData
-  PLC.SerialiseData            -> Cake.SerialiseData
 
 constToCake :: PLC.Some (PLC.ValueOf PLC.DefaultUni) -> Cake.Some (Cake.ValueOf Cake.DefaultUni)
 constToCake (PLC.Some val) = Cake.Some (valToCake val)

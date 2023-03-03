@@ -4,26 +4,17 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies    #-}
 {-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE LambdaCase   #-}
+{-# LANGUAGE EmptyCase   #-}
 
 module PureCake.PlutusCore.Evaluation.Machine.MachineParameters
 where
 
 import PureCake.PlutusCore.Default.Builtins
-import PureCake.PlutusCore.Default.Universe
 
 import PureCake.PlutusCore.Builtin
 
-import Control.DeepSeq
-import Control.Lens
-import GHC.Exts (inline)
 import GHC.Generics
-
-data CostModel machinecosts builtincosts =
-    CostModel {
-      _machineCostModel :: machinecosts
-    , _builtinCostModel :: builtincosts
-    } deriving stock (Eq, Show)
-makeLenses ''CostModel
 
 data MachineParameters machinecosts val =
     MachineParameters {
@@ -31,15 +22,6 @@ data MachineParameters machinecosts val =
     , builtinsRuntime :: BuiltinsRuntime DefaultFun val
     }
     deriving stock Generic
-    deriving anyclass (NFData)
 
-mkMachineParameters ::
-    ( CostingPart DefaultUni DefaultFun ~ builtincosts
-    , HasMeaningIn DefaultUni val
-    )
-    => BuiltinVersion DefaultFun
-    -> CostModel machinecosts builtincosts
-    -> MachineParameters machinecosts val
-mkMachineParameters ver (CostModel mchnCosts builtinCosts) =
-    MachineParameters mchnCosts (inline toBuiltinsRuntime ver builtinCosts)
-{-# INLINE mkMachineParameters #-}
+mkMachineParameters :: machinecosts -> MachineParameters machinecosts val
+mkMachineParameters mchnCosts = MachineParameters mchnCosts (BuiltinsRuntime $ \case)

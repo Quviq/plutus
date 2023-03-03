@@ -44,15 +44,14 @@ import PureCake.PlutusCore.Default.Builtins
 import PureCake.PlutusCore.Default.Universe
 
 import ErrorCode (ErrorCode (..), HasErrorCode (..))
-import PlutusPrelude (Generic, coerce, ($>))
+import PlutusPrelude (Generic, coerce)
 
 import PureCake.UntypedPlutusCore.Core (Term (..), UniOf)
 
 
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
-import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasConstant (..), MakeKnownM (..),
-                                    lookupBuiltin, throwKnownTypeErrorWithCause)
+import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime, HasConstant (..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), ExBudgetBuiltin (..), ExRestrictingBudget (..))
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), EvaluationException,
@@ -295,7 +294,7 @@ dischargeCekValue = \case
     -- We only return a discharged builtin application when (a) it's being returned by the machine,
     -- or (b) it's needed for an error message.
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
-    VBuiltin _ term _                    -> term
+    -- VBuiltin _ term _                    -> term
 
 type instance UniOf CekValue = DefaultUni
 
@@ -324,7 +323,7 @@ instance ExMemoryUsage CekValue where
         VCon c      -> memoryUsage c
         VDelay {}   -> 1
         VLamAbs {}  -> 1
-        VBuiltin {} -> 1
+        -- VBuiltin {} -> 1
     {-# INLINE memoryUsage #-}
 
 -- | A 'MonadError' version of 'try'.
@@ -364,23 +363,23 @@ lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
 -- 'makeKnown' or a partial builtin application depending on whether the built-in function is
 -- fully saturated or not.
-evalBuiltinApp
-    :: (GivenCekReqs s)
-    => DefaultFun
-    -> Term NamedDeBruijn DefaultUni DefaultFun ()
-    -> BuiltinRuntime CekValue
-    -> CekM s CekValue
-evalBuiltinApp fun term runtime = case runtime of
-    BuiltinResult cost getX -> do
-        spendBudgetCek (BBuiltinApp fun) cost
-        case getX of
-            MakeKnownFailure logs err       -> do
-                ?cekEmitter logs
-                throwKnownTypeErrorWithCause term err
-            MakeKnownSuccess x              -> pure x
-            MakeKnownSuccessWithLogs logs x -> ?cekEmitter logs $> x
-    _ -> pure $ VBuiltin fun term runtime
-{-# INLINE evalBuiltinApp #-}
+-- evalBuiltinApp
+--     :: (GivenCekReqs s)
+--     => DefaultFun
+--     -> Term NamedDeBruijn DefaultUni DefaultFun ()
+--     -> BuiltinRuntime CekValue
+--     -> CekM s CekValue
+-- evalBuiltinApp fun term runtime = case runtime of
+--     BuiltinResult cost getX -> do
+--         spendBudgetCek (BBuiltinApp fun) cost
+--         case getX of
+--             MakeKnownFailure logs err       -> do
+--                 ?cekEmitter logs
+--                 throwKnownTypeErrorWithCause term err
+--             MakeKnownSuccess x              -> pure x
+--             MakeKnownSuccessWithLogs logs x -> ?cekEmitter logs $> x
+--     _ -> pure $ VBuiltin fun term runtime
+-- {-# INLINE evalBuiltinApp #-}
 
 -- See Note [Compilation peculiarities].
 -- | The entering point to the CEK machine's engine.
@@ -429,11 +428,11 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- s ; ρ ▻ abs α L  ↦  s ◅ abs α (L , ρ)
     -- s ; ρ ▻ con c  ↦  s ◅ con c
     -- s ; ρ ▻ builtin bn  ↦  s ◅ builtin bn arity arity [] [] ρ
-    computeCek !unbudgetedSteps !ctx !_ (Builtin _ bn) = do
-        !unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
-        let meaning = lookupBuiltin bn ?cekRuntime
-        -- 'Builtin' is fully discharged.
-        returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin () bn) meaning)
+    -- computeCek !unbudgetedSteps !ctx !_ (Builtin _ bn) = do
+    --     !unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
+    --     let meaning = lookupBuiltin bn ?cekRuntime
+    --     -- 'Builtin' is fully discharged.
+    --     returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin () bn) meaning)
     -- s ; ρ ▻ error A  ↦  <> A
     computeCek !_ !_ !_ (Error _) =
         throwing_ _EvaluationFailure
@@ -479,20 +478,20 @@ enterComputeCek = computeCek (toWordArray 0) where
         -> CekValue
         -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
     forceEvaluate !unbudgetedSteps !ctx (VDelay body env) = computeCek unbudgetedSteps ctx env body
-    forceEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) = do
-        -- @term@ is fully discharged, and so @term'@ is, hence we can put it in a 'VBuiltin'.
-        let term' = Force () term
-        case runtime of
-            -- It's only possible to force a builtin application if the builtin expects a type
-            -- argument next.
-            BuiltinExpectForce runtime' -> do
-                -- We allow a type argument to appear last in the type of a built-in function,
-                -- otherwise we could just assemble a 'VBuiltin' without trying to evaluate the
-                -- application.
-                res <- evalBuiltinApp fun term' runtime'
-                returnCek unbudgetedSteps ctx res
-            _ ->
-                throwingWithCause _MachineError BuiltinTermArgumentExpectedMachineError (Just term')
+    -- forceEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) = do
+    --     -- @term@ is fully discharged, and so @term'@ is, hence we can put it in a 'VBuiltin'.
+    --     let term' = Force () term
+    --     case runtime of
+    --         -- It's only possible to force a builtin application if the builtin expects a type
+    --         -- argument next.
+    --         BuiltinExpectForce runtime' -> do
+    --             -- We allow a type argument to appear last in the type of a built-in function,
+    --             -- otherwise we could just assemble a 'VBuiltin' without trying to evaluate the
+    --             -- application.
+    --             res <- evalBuiltinApp fun term' runtime'
+    --             returnCek unbudgetedSteps ctx res
+    --         _ ->
+    --             throwingWithCause _MachineError BuiltinTermArgumentExpectedMachineError (Just term')
     forceEvaluate !_ !_ val =
         throwingDischarged _MachineError NonPolymorphicInstantiationMachineError val
 
@@ -513,19 +512,19 @@ enterComputeCek = computeCek (toWordArray 0) where
         computeCek unbudgetedSteps ctx (Env.cons arg env) body
     -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
     -- 'VCon'. After that the bangs here were making things a tiny bit slower and so we removed them.
-    applyEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) arg = do
-        let argTerm = dischargeCekValue arg
-            -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
-            -- in a 'VBuiltin'.
-            term' = Apply () term argTerm
-        case runtime of
-            -- It's only possible to apply a builtin application if the builtin expects a term
-            -- argument next.
-            BuiltinExpectArgument f -> do
-                res <- evalBuiltinApp fun term' $ f arg
-                returnCek unbudgetedSteps ctx res
-            _ ->
-                throwingWithCause _MachineError UnexpectedBuiltinTermArgumentMachineError (Just term')
+    -- applyEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) arg = do
+    --     let argTerm = dischargeCekValue arg
+    --         -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
+    --         -- in a 'VBuiltin'.
+    --         term' = Apply () term argTerm
+    --     case runtime of
+    --         -- It's only possible to apply a builtin application if the builtin expects a term
+    --         -- argument next.
+    --         BuiltinExpectArgument f -> do
+    --             res <- evalBuiltinApp fun term' $ f arg
+    --             returnCek unbudgetedSteps ctx res
+    --         _ ->
+    --             throwingWithCause _MachineError UnexpectedBuiltinTermArgumentMachineError (Just term')
     applyEvaluate !_ !_ val _ =
         throwingDischarged _MachineError NonFunctionalApplicationMachineError val
 

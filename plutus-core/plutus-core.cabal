@@ -365,11 +365,8 @@ library purecake
     PureCake.PlutusCore.Builtin.HasConstant
     PureCake.PlutusCore.Builtin.KnownType
     PureCake.PlutusCore.Builtin.KnownTypeAst
-    PureCake.PlutusCore.Builtin.Meaning
     PureCake.PlutusCore.Builtin.Polymorphism
     PureCake.PlutusCore.Builtin.Runtime
-    PureCake.PlutusCore.Builtin.TestKnown
-    PureCake.PlutusCore.Builtin.TypeScheme
     PureCake.PlutusCore.Core
     PureCake.PlutusCore.Core.Type
     PureCake.PlutusCore.DeBruijn
@@ -378,7 +375,6 @@ library purecake
     PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
     PureCake.PlutusCore.Evaluation.Machine.CostingFun.Core
     PureCake.PlutusCore.Evaluation.Machine.CostingFun.JSON
-    PureCake.PlutusCore.Evaluation.Machine.CostModelInterface
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
     PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
     PureCake.PlutusCore.Evaluation.Machine.Exception
