@@ -9,11 +9,8 @@
 
 module PureCake.PlutusCore.Evaluation.Result
     ( AsEvaluationFailure (..)
-    , evaluationFailure
     , _EvaluationFailureVia
     , EvaluationResult (..)
-    , isEvaluationSuccess
-    , isEvaluationFailure
     ) where
 
 import PlutusPrelude
@@ -34,10 +31,7 @@ import Control.Monad.Except
 -- data type name-clashing with the useful 'EvaluationResult'.
 -- | A class for viewing errors as evaluation failures (in the sense of Plutus).
 class AsEvaluationFailure err where
-    _EvaluationFailure :: Prism' err ()
-
-evaluationFailure :: AsEvaluationFailure err => err
-evaluationFailure = _EvaluationFailure # ()
+  _EvaluationFailure :: Prism' err ()
 
 -- | Construct a 'Prism' focusing on the @*EvaluationFailure@ part of @err@ by taking
 -- that @*EvaluationFailure@ and
@@ -54,15 +48,6 @@ data EvaluationResult a
     = EvaluationSuccess !a
     | EvaluationFailure
     deriving stock (Show, Eq, Generic, Functor, Foldable, Traversable)
-    deriving anyclass (NFData)
-
--- This and the next one are two instances that allow us to write the following:
---
--- >>> import Control.Monad.Error.Lens
--- >>> throwing_ _EvaluationFailure :: EvaluationResult Bool
--- EvaluationFailure
-instance AsEvaluationFailure () where
-    _EvaluationFailure = id
 
 instance MonadError () EvaluationResult where
     throwError () = EvaluationFailure
@@ -79,20 +64,3 @@ instance Applicative EvaluationResult where
 instance Monad EvaluationResult where
     EvaluationSuccess x >>= f = f x
     EvaluationFailure   >>= _ = EvaluationFailure
-
-instance Alternative EvaluationResult where
-    empty = EvaluationFailure
-
-    EvaluationSuccess x <|> _ = EvaluationSuccess x
-    EvaluationFailure   <|> a = a
-
-instance MonadFail EvaluationResult where
-    fail _ = EvaluationFailure
-
--- | Check whether an 'EvaluationResult' is an 'EvaluationSuccess'.
-isEvaluationSuccess :: EvaluationResult a -> Bool
-isEvaluationSuccess = not . null
-
--- | Check whether an 'EvaluationResult' is an 'EvaluationFailure'.
-isEvaluationFailure :: EvaluationResult a -> Bool
-isEvaluationFailure = null

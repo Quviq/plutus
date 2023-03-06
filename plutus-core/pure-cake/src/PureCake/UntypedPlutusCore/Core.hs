@@ -29,7 +29,6 @@ data Term name uni fun ann
     | Error !ann
     deriving stock (Show, Functor, Eq)
 
-
 data Version ann
     = Version ann Natural Natural Natural
     deriving stock (Eq, Show, Functor)
