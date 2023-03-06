@@ -147,13 +147,10 @@ where
 import PlutusPrelude hiding (toList)
 import PureCake.PlutusCore.Evaluation.Machine.ExMemory
 
-import Codec.Serialise (Serialise (..))
 import Data.Char (toLower)
 import Data.Semigroup
 import Deriving.Aeson
 import Language.Haskell.TH.Lift (Lift)
-import NoThunks.Class
-import Prettyprinter
 
 
 -- | This is used elsewhere to convert cost models into JSON objects where the

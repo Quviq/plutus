@@ -13,7 +13,6 @@ where
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 
-import Control.DeepSeq
 import Data.Text qualified as Text
 import Deriving.Aeson
 import Language.Haskell.TH.Syntax (Lift)

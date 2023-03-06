@@ -9,11 +9,6 @@
 
 module PureCake.PlutusCore.Builtin where
 
-import PureCake.PlutusCore.Evaluation.Machine.ExBudget
-
-import Data.DList (DList)
-import Data.Text (Text)
-
 data BuiltinRuntime val = BuiltinRuntime
 
 data BuiltinsRuntime fun val = BuiltinsRuntime

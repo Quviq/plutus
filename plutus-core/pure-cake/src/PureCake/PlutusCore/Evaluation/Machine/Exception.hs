@@ -15,20 +15,14 @@
 
 module PureCake.PlutusCore.Evaluation.Machine.Exception
     ( UnliftingError (..)
-    , AsUnliftingError (..)
-    , KnownTypeError (..)
     , MachineError (..)
     , AsMachineError (..)
     , EvaluationError (..)
     , AsEvaluationError (..)
     , ErrorWithCause (..)
     , EvaluationException
-    , mapCauseInMachineException
-    , throwing
     , throwing_
     , throwingWithCause
-    , extractEvaluationResult
-    , unsafeExtractEvaluationResult
     ) where
 
 import PlutusPrelude
@@ -36,12 +30,10 @@ import PlutusPrelude
 import PureCake.PlutusCore.Evaluation.Result
 
 import Control.Lens
-import Control.Monad.Error.Lens (throwing, throwing_)
+import Control.Monad.Error.Lens (throwing_)
 import Control.Monad.Except
-import Data.Either.Extras
 import Data.String (IsString)
 import Data.Text (Text)
-import ErrorCode
 
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
@@ -52,7 +44,6 @@ newtype UnliftingError
 -- | The type of errors that 'readKnown' and 'makeKnown' can return.
 data KnownTypeError
     = KnownTypeUnliftingError UnliftingError
-    | KnownTypeEvaluationFailure
     deriving stock (Eq)
 
 -- | Errors which can occur during a run of an abstract machine.
@@ -73,7 +64,6 @@ data MachineError fun
       -- ^ A builtin received a term argument when something else was expected
     | UnknownBuiltin fun
     deriving stock (Show, Eq, Functor, Generic)
-    deriving anyclass (NFData)
 
 -- | The type of errors (all of them) which can occur during evaluation
 -- (some are used-caused, some are internal).
@@ -83,26 +73,15 @@ data EvaluationError user internal
     | UserEvaluationError user
       -- ^ Indicates user errors.
     deriving stock (Show, Eq, Functor, Generic)
-    deriving anyclass (NFData)
 
 mtraverse makeClassyPrisms
     [ ''UnliftingError
-    , ''KnownTypeError
     , ''MachineError
     , ''EvaluationError
     ]
 
-instance AsUnliftingError KnownTypeError where
-    _UnliftingError = _KnownTypeUnliftingError
-instance AsEvaluationFailure KnownTypeError where
-    _EvaluationFailure = _EvaluationFailureVia KnownTypeEvaluationFailure
-
 instance internal ~ MachineError fun => AsMachineError (EvaluationError user internal) fun where
     _MachineError = _InternalEvaluationError
-instance AsUnliftingError internal => AsUnliftingError (EvaluationError user internal) where
-    _UnliftingError = _InternalEvaluationError . _UnliftingError
-instance AsUnliftingError (MachineError fun) where
-    _UnliftingError = _UnliftingMachineError
 instance AsEvaluationFailure user => AsEvaluationFailure (EvaluationError user internal) where
     _EvaluationFailure = _UserEvaluationError . _EvaluationFailure
 
@@ -113,24 +92,11 @@ data ErrorWithCause err cause = ErrorWithCause
     } deriving stock (Eq, Functor, Foldable, Traversable, Generic, Show)
     deriving anyclass (NFData)
 
-instance Bifunctor ErrorWithCause where
-    bimap f g (ErrorWithCause err cause) = ErrorWithCause (f err) (g <$> cause)
-
 instance AsEvaluationFailure err => AsEvaluationFailure (ErrorWithCause err cause) where
     _EvaluationFailure = iso _ewcError (flip ErrorWithCause Nothing) . _EvaluationFailure
 
 type EvaluationException user internal =
     ErrorWithCause (EvaluationError user internal)
-
-throwNotAConstant :: MonadError KnownTypeError m => m void
-throwNotAConstant = throwError $ KnownTypeUnliftingError "Not a constant"
-{-# INLINE throwNotAConstant #-}
-
-mapCauseInMachineException
-    :: (term1 -> term2)
-    -> EvaluationException user (MachineError fun) term1
-    -> EvaluationException user (MachineError fun) term2
-mapCauseInMachineException = fmap
 
 -- | "Prismatically" throw an error and its (optional) cause.
 throwingWithCause
@@ -140,55 +106,5 @@ throwingWithCause
     => AReview e t -> t -> Maybe term -> m x
 throwingWithCause l t cause = reviews l (\e -> throwError $ ErrorWithCause e cause) t
 
-{- Note [Ignoring context in UserEvaluationError]
-The UserEvaluationError error has a term argument, but
-extractEvaluationResult just discards this and returns
-EvaluationFailure.  This means that, for example, if we use the `plc`
-command to execute a program containing a division by zero, plc exits
-silently without reporting that anything has gone wrong (but returning
-a non-zero exit code to the shell via `exitFailure`).  This is because
-UserEvaluationError is used in cases when a PLC program itself goes
-wrong (for example, a failure due to `(error)`, a failure during
-builtin evaluation, or exceeding the gas limit).  This is used to
-signal unsuccessful in validation and so is not regarded as a real
-error; in contrast, machine errors, typechecking failures,
-and so on are genuine errors and we report their context if available.
- -}
-
--- | Turn any 'UserEvaluationError' into an 'EvaluationFailure'.
-extractEvaluationResult
-    :: Either (EvaluationException user internal term) a
-    -> Either (ErrorWithCause internal term) (EvaluationResult a)
-extractEvaluationResult (Right term) = Right $ EvaluationSuccess term
-extractEvaluationResult (Left (ErrorWithCause evalErr cause)) = case evalErr of
-    InternalEvaluationError err -> Left  $ ErrorWithCause err cause
-    UserEvaluationError _       -> Right $ EvaluationFailure
-
-unsafeExtractEvaluationResult
-    :: (Show (ErrorWithCause internal term), Typeable internal, Typeable term)
-    => Either (EvaluationException user internal term) a
-    -> EvaluationResult a
-unsafeExtractEvaluationResult = unsafeFromEither . extractEvaluationResult
-
 deriving anyclass instance
     (Show (ErrorWithCause err cause), Typeable cause, Typeable err) => Exception (ErrorWithCause err cause)
-
-instance HasErrorCode UnliftingError where
-      errorCode        UnliftingErrorE {}        = ErrorCode 30
-
-instance HasErrorCode (MachineError err) where
-      errorCode        UnexpectedBuiltinTermArgumentMachineError {} = ErrorCode 33
-      errorCode        BuiltinTermArgumentExpectedMachineError {}   = ErrorCode 32
-      errorCode        OpenTermEvaluatedMachineError {}             = ErrorCode 27
-      errorCode        NonFunctionalApplicationMachineError {}      = ErrorCode 26
-      errorCode        NonWrapUnwrappedMachineError {}              = ErrorCode 25
-      errorCode        NonPolymorphicInstantiationMachineError {}   = ErrorCode 24
-      errorCode        (UnliftingMachineError e)                    = errorCode e
-      errorCode        UnknownBuiltin {}                            = ErrorCode 17
-
-instance (HasErrorCode user, HasErrorCode internal) => HasErrorCode (EvaluationError user internal) where
-  errorCode (InternalEvaluationError e) = errorCode e
-  errorCode (UserEvaluationError e)     = errorCode e
-
-instance HasErrorCode err => HasErrorCode (ErrorWithCause err t) where
-    errorCode (ErrorWithCause e _) = errorCode e

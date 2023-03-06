@@ -7,15 +7,13 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module PureCake.UntypedPlutusCore.Core
-    ( TPLC.Version (..)
-    , TPLC.Binder (..)
+    ( Version (..)
+    , Binder (..)
     , Term (..)
     ) where
 
 import PlutusPrelude
 
-import PureCake.PlutusCore.Core.Type qualified as TPLC
-import PureCake.PlutusCore.Name qualified as TPLC
 import Universe
 
 -- Making all the fields strict gives us a couple of percent in benchmarks
@@ -30,3 +28,10 @@ data Term name uni fun ann
     | Builtin !ann !fun
     | Error !ann
     deriving stock (Show, Functor, Eq)
+
+
+data Version ann
+    = Version ann Natural Natural Natural
+    deriving stock (Eq, Show, Functor)
+
+newtype Binder name = Binder { unBinder :: name }

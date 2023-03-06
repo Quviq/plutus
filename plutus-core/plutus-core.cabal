@@ -361,7 +361,6 @@ library purecake
   other-modules:
     PureCake.PlutusCore.Builtin
     PureCake.PlutusCore.Builtin.Emitter
-    PureCake.PlutusCore.Core.Type
     PureCake.PlutusCore.DeBruijn
     PureCake.PlutusCore.Default.Builtins
     PureCake.PlutusCore.Default.Universe
