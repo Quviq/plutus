@@ -1,19 +1,13 @@
 -- | This module defines a common type various evaluation machine use to return their results.
 
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE UndecidableInstances  #-}
 
 module PureCake.PlutusCore.Evaluation.Result
     ( AsEvaluationFailure (..)
     , _EvaluationFailureVia
     , EvaluationResult (..)
     ) where
-
-import PlutusPrelude
 
 import Control.Lens
 import Control.Monad.Except
@@ -47,7 +41,7 @@ _EvaluationFailureVia failure = prism (const failure) $ \a -> when (a /= failure
 data EvaluationResult a
     = EvaluationSuccess !a
     | EvaluationFailure
-    deriving stock (Show, Eq, Generic, Functor, Foldable, Traversable)
+    deriving stock (Show, Eq, Functor)
 
 instance MonadError () EvaluationResult where
     throwError () = EvaluationFailure

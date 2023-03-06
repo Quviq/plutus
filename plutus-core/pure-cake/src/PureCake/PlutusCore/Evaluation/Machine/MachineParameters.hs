@@ -1,9 +1,3 @@
--- editorconfig-checker-disable-file
-{-# LANGUAGE DeriveAnyClass  #-}
-{-# LANGUAGE StrictData      #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
-{-# LANGUAGE TypeOperators   #-}
 {-# LANGUAGE LambdaCase   #-}
 {-# LANGUAGE EmptyCase   #-}
 
