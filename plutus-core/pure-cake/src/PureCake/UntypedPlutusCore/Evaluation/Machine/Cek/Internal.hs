@@ -40,13 +40,10 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     )
 where
 
-import PureCake.PlutusCore.Default.Builtins
-import PureCake.PlutusCore.Default.Universe
-
 import ErrorCode (ErrorCode (..), HasErrorCode (..))
 import PlutusPrelude (Generic, coerce)
 
-import PureCake.UntypedPlutusCore.Core (Term (..))
+import PureCake.UntypedPlutusCore.Core
 
 
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
@@ -63,7 +60,7 @@ import PureCake.PlutusCore.Evaluation.Result (AsEvaluationFailure (..), Evaluati
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
 
 import Control.Lens.Review (AReview)
-import Control.Monad (unless, void)
+import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Except (MonadError (..))
 import Control.Monad.ST (ST, runST)
@@ -110,9 +107,9 @@ instance Show (BuiltinRuntime CekValue) where
 -- 'Values' for the modified CEK machine.
 data CekValue =
     -- This bang gave us a 1-2% speed-up at the time of writing.
-    VCon !(Some (ValueOf DefaultUni))
-  | VDelay !(Term NamedDeBruijn DefaultUni DefaultFun ()) !CekValEnv
-  | VLamAbs !NamedDeBruijn !(Term NamedDeBruijn DefaultUni DefaultFun ()) !CekValEnv
+    VCon Const
+  | VDelay !(Term NamedDeBruijn) !CekValEnv
+  | VLamAbs !NamedDeBruijn !(Term NamedDeBruijn) !CekValEnv
     -- | A partial builtin application, accumulating arguments for eventual full application.
     -- We don't need a 'CekValEnv' here unlike in the other constructors, because 'VBuiltin'
     -- values always store their corresponding 'Term's fully discharged, see the comments at
@@ -124,7 +121,7 @@ data CekValue =
       -- consistently slowing evaluation down by half a percent. Might be noise, might be not, but
       -- at least we know that removing this @fun@ is not helpful anyway. See this commit reversing
       -- the change: https://github.com/input-output-hk/plutus/pull/4778/commits/86a3e24ca3c671cc27c6f4344da2bcd14f961706
-      (Term NamedDeBruijn DefaultUni DefaultFun ())
+      (Term NamedDeBruijn)
       -- ^ This must be lazy. It represents the fully discharged partial application of the builtin
       -- function that we're going to run when it's fully saturated.  We need the 'Term' to be able
       -- to return it in case full saturation is never achieved and a partial application needs to
@@ -219,7 +216,7 @@ newtype CekM s a = CekM
 
 -- | The CEK machine-specific 'EvaluationException'.
 type CekEvaluationException =
-    EvaluationException CekUserError (MachineError DefaultFun) (Term NamedDeBruijn DefaultUni DefaultFun ())
+    EvaluationException CekUserError (MachineError DefaultFun) (Term NamedDeBruijn)
 
 throwingDischarged
     :: AReview (EvaluationError CekUserError (MachineError DefaultFun)) t
@@ -252,16 +249,16 @@ spendBudgetCek = let (CekBudgetSpender spend) = ?cekBudgetSpender in spend
 -- | Instantiate all the free variables of a term by looking them up in an environment.
 -- Mutually recursive with dischargeCekVal.
 dischargeCekValEnv :: CekValEnv
-                   -> Term NamedDeBruijn DefaultUni DefaultFun ()
-                   -> Term NamedDeBruijn DefaultUni DefaultFun ()
+                   -> Term NamedDeBruijn
+                   -> Term NamedDeBruijn
 dischargeCekValEnv valEnv = go 0
  where
   -- The lamCnt is just a counter that measures how many lambda-abstractions
   -- we have descended in the `go` loop.
-  go :: Word64 -> Term NamedDeBruijn DefaultUni DefaultFun () -> Term NamedDeBruijn DefaultUni DefaultFun ()
+  go :: Word64 -> Term NamedDeBruijn -> Term NamedDeBruijn
   go !lamCnt =  \case
-    LamAbs ann name body -> LamAbs ann name $ go (lamCnt+1) body
-    var@(Var _ (NamedDeBruijn _ ndbnIx)) -> let ix = coerce ndbnIx :: Word64  in
+    LamAbs name body -> LamAbs name $ go (lamCnt+1) body
+    var@(Var (NamedDeBruijn _ ndbnIx)) -> let ix = coerce ndbnIx :: Word64  in
         if lamCnt >= ix
         -- the index n is less-than-or-equal than the number of lambdas we have descended
         -- this means that n points to a bound variable, so we don't discharge it.
@@ -273,23 +270,23 @@ dischargeCekValEnv valEnv = go 0
                dischargeCekValue
                -- index relative to (as seen from the point of view of) the environment
                (Env.indexOne valEnv $ ix - lamCnt)
-    Apply ann fun arg    -> Apply ann (go lamCnt fun) $ go lamCnt arg
-    Delay ann term       -> Delay ann $ go lamCnt term
-    Force ann term       -> Force ann $ go lamCnt term
+    Apply fun arg    -> Apply (go lamCnt fun) $ go lamCnt arg
+    Delay term       -> Delay $ go lamCnt term
+    Force term       -> Force $ go lamCnt term
     t -> t
 
 -- | Convert a 'CekValue' into a 'Term' by replacing all bound variables with the terms
 -- they're bound to (which themselves have to be obtain by recursively discharging values).
-dischargeCekValue :: CekValue -> Term NamedDeBruijn DefaultUni DefaultFun ()
+dischargeCekValue :: CekValue -> Term NamedDeBruijn
 dischargeCekValue = \case
-    VCon     val                         -> Constant () val
-    VDelay   body env                    -> dischargeCekValEnv env $ Delay () (void body)
+    VCon val                           -> Constant val
+    VDelay body env                    -> dischargeCekValEnv env $ Delay body
     -- 'computeCek' turns @LamAbs _ name body@ into @VLamAbs name body env@ where @env@ is an
     -- argument of 'computeCek' and hence we need to start discharging outside of the reassembled
     -- lambda, otherwise @name@ could clash with the names that we have in @env@.
     VLamAbs (NamedDeBruijn n _ix) body env ->
         -- The index on the binder is meaningless, we put `0` by convention, see 'Binder'.
-        dischargeCekValEnv env $ LamAbs () (NamedDeBruijn n deBruijnInitIndex) (void body)
+        dischargeCekValEnv env $ LamAbs (NamedDeBruijn n deBruijnInitIndex) body
     -- We only return a discharged builtin application when (a) it's being returned by the machine,
     -- or (b) it's needed for an error message.
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
@@ -297,7 +294,7 @@ dischargeCekValue = \case
 
 data Context
     = FrameApplyFun !CekValue !Context
-    | FrameApplyArg !CekValEnv !(Term NamedDeBruijn DefaultUni DefaultFun ()) !Context
+    | FrameApplyArg !CekValEnv !(Term NamedDeBruijn) !Context
     | FrameForce !Context
     | NoFrame
     deriving stock (Show)
@@ -333,7 +330,7 @@ lookupVarName :: forall s.
 lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
     case varEnv `Env.indexOne` coerce varIx of
         Nothing  -> throwingWithCause _MachineError OpenTermEvaluatedMachineError $ Just var where
-            var = Var () varName
+            var = Var varName
         Just val -> pure val
 
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
@@ -342,7 +339,7 @@ lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
 -- evalBuiltinApp
 --     :: (GivenCekReqs s)
 --     => DefaultFun
---     -> Term NamedDeBruijn DefaultUni DefaultFun ()
+--     -> Term NamedDeBruijn
 --     -> BuiltinRuntime CekValue
 --     -> CekM s CekValue
 -- evalBuiltinApp fun term runtime = case runtime of
@@ -364,8 +361,8 @@ enterComputeCek
     . (GivenCekReqs s)
     => Context
     -> CekValEnv
-    -> Term NamedDeBruijn DefaultUni DefaultFun ()
-    -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
+    -> Term NamedDeBruijn
+    -> CekM s (Term NamedDeBruijn)
 enterComputeCek = computeCek (toWordArray 0) where
     -- | The computing part of the CEK machine.
     -- Either
@@ -377,28 +374,28 @@ enterComputeCek = computeCek (toWordArray 0) where
         :: WordArray
         -> Context
         -> CekValEnv
-        -> Term NamedDeBruijn DefaultUni DefaultFun ()
-        -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
+        -> Term NamedDeBruijn
+        -> CekM s (Term NamedDeBruijn)
     -- s ; ρ ▻ {L A}  ↦ s , {_ A} ; ρ ▻ L
-    computeCek !unbudgetedSteps !ctx !env (Var _ varName) = do
+    computeCek !unbudgetedSteps !ctx !env (Var varName) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BVar unbudgetedSteps
         val <- lookupVarName varName env
         returnCek unbudgetedSteps' ctx val
-    computeCek !unbudgetedSteps !ctx !_ (Constant _ val) = do
+    computeCek !unbudgetedSteps !ctx !_ (Constant val) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BConst unbudgetedSteps
         returnCek unbudgetedSteps' ctx (VCon val)
-    computeCek !unbudgetedSteps !ctx !env (LamAbs _ name body) = do
+    computeCek !unbudgetedSteps !ctx !env (LamAbs name body) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BLamAbs unbudgetedSteps
         returnCek unbudgetedSteps' ctx (VLamAbs name body env)
-    computeCek !unbudgetedSteps !ctx !env (Delay _ body) = do
+    computeCek !unbudgetedSteps !ctx !env (Delay body) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BDelay unbudgetedSteps
         returnCek unbudgetedSteps' ctx (VDelay body env)
     -- s ; ρ ▻ lam x L  ↦  s ◅ lam x (L , ρ)
-    computeCek !unbudgetedSteps !ctx !env (Force _ body) = do
+    computeCek !unbudgetedSteps !ctx !env (Force body) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BForce unbudgetedSteps
         computeCek unbudgetedSteps' (FrameForce ctx) env body
     -- s ; ρ ▻ [L M]  ↦  s , [_ (M,ρ)]  ; ρ ▻ L
-    computeCek !unbudgetedSteps !ctx !env (Apply _ fun arg) = do
+    computeCek !unbudgetedSteps !ctx !env (Apply fun arg) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BApply unbudgetedSteps
         computeCek unbudgetedSteps' (FrameApplyArg env arg ctx) env fun
     -- s ; ρ ▻ abs α L  ↦  s ◅ abs α (L , ρ)
@@ -410,7 +407,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     --     -- 'Builtin' is fully discharged.
     --     returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin () bn) meaning)
     -- s ; ρ ▻ error A  ↦  <> A
-    computeCek !_ !_ !_ (Error _) =
+    computeCek !_ !_ !_ Error =
         throwing_ _EvaluationFailure
 
     {- | The returning phase of the CEK machine.
@@ -426,7 +423,7 @@ enterComputeCek = computeCek (toWordArray 0) where
         :: WordArray
         -> Context
         -> CekValue
-        -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
+        -> CekM s (Term NamedDeBruijn)
     --- Instantiate all the free variable of the resulting term in case there are any.
     -- . ◅ V           ↦  [] V
     returnCek !unbudgetedSteps NoFrame val = do
@@ -452,7 +449,7 @@ enterComputeCek = computeCek (toWordArray 0) where
         :: WordArray
         -> Context
         -> CekValue
-        -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
+        -> CekM s (Term NamedDeBruijn)
     forceEvaluate !unbudgetedSteps !ctx (VDelay body env) = computeCek unbudgetedSteps ctx env body
     -- forceEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) = do
     --     -- @term@ is fully discharged, and so @term'@ is, hence we can put it in a 'VBuiltin'.
@@ -483,7 +480,7 @@ enterComputeCek = computeCek (toWordArray 0) where
         -> Context
         -> CekValue -- lhs of application
         -> CekValue -- rhs of application
-        -> CekM s (Term NamedDeBruijn DefaultUni DefaultFun ())
+        -> CekM s (Term NamedDeBruijn)
     applyEvaluate !unbudgetedSteps !ctx (VLamAbs _ body env) arg =
         computeCek unbudgetedSteps ctx (Env.cons arg env) body
     -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
@@ -536,8 +533,8 @@ runCekDeBruijn
     :: MachineParameters CekMachineCosts CekValue
     -> ExBudgetMode cost
     -> EmitterMode
-    -> Term NamedDeBruijn DefaultUni DefaultFun ()
-    -> (Either CekEvaluationException (Term NamedDeBruijn DefaultUni DefaultFun ()), cost, [Text])
+    -> Term NamedDeBruijn
+    -> (Either CekEvaluationException (Term NamedDeBruijn), cost, [Text])
 runCekDeBruijn params mode emitMode term =
     runCekM params mode emitMode $ do
         spendBudgetCek BStartup (cekStartupCost ?cekCosts)

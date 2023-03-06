@@ -6,23 +6,20 @@
 module PureCake.ToPureCake where
 
 import Data.Coerce
+import Data.Text
 
 import PlutusCore.Default qualified as PLC
 import PlutusCore.Evaluation.Machine.Exception qualified as PLC
 import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
-
-import PureCake.PlutusCore.Default.Builtins qualified as Cake
-import PureCake.PlutusCore.Evaluation.Machine.Exception qualified as Cake
-import PureCake.PlutusCore.Evaluation.Machine.ExMemory qualified as Cake
-import PureCake.UntypedPlutusCore.Core qualified as Cake
-
 import PlutusCore.DeBruijn qualified as PLC
 import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
+import PureCake.PlutusCore.Evaluation.Machine.Exception qualified as Cake
+import PureCake.PlutusCore.Evaluation.Machine.ExMemory qualified as Cake
+import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.PlutusCore.DeBruijn qualified as Cake
-import PureCake.PlutusCore.Default.Universe qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
@@ -70,41 +67,35 @@ exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
 exBudgetToCake :: PLC.ExBudget -> Cake.ExBudget
 exBudgetToCake (PLC.ExBudget cpu mem) = Cake.ExBudget (coerce cpu) (coerce mem)
 
-termToCake :: PLC.Term  PLC.NamedDeBruijn  PLC.DefaultUni PLC.DefaultFun ann
-           -> Cake.Term Cake.NamedDeBruijn Cake.DefaultUni Cake.DefaultFun ann
+termToCake :: PLC.Term  PLC.NamedDeBruijn  PLC.DefaultUni PLC.DefaultFun ()
+           -> Cake.Term Cake.NamedDeBruijn
 termToCake = \ case
-  PLC.Var ann name      -> Cake.Var ann (nameToCake name)
-  PLC.LamAbs ann name t -> Cake.LamAbs ann (nameToCake name) (termToCake t)
-  PLC.Apply ann s t     -> Cake.Apply ann (termToCake s) (termToCake t)
-  PLC.Force ann t       -> Cake.Force ann (termToCake t)
-  PLC.Delay ann t       -> Cake.Delay ann (termToCake t)
-  PLC.Constant ann c    -> Cake.Constant ann (constToCake c)
-  PLC.Builtin ann fun   -> Cake.Builtin ann (funToCake fun)
-  PLC.Error ann         -> Cake.Error ann
+  PLC.Var _ name      -> Cake.Var (nameToCake name)
+  PLC.LamAbs _ name t -> Cake.LamAbs (nameToCake name) (termToCake t)
+  PLC.Apply _ s t     -> Cake.Apply (termToCake s) (termToCake t)
+  PLC.Force _ t       -> Cake.Force (termToCake t)
+  PLC.Delay _ t       -> Cake.Delay (termToCake t)
+  PLC.Constant _ c    -> Cake.Constant (constToCake c)
+  PLC.Builtin _ fun   -> Cake.Builtin (funToCake fun)
+  PLC.Error _         -> Cake.Error
 
 cakeToFun :: Cake.DefaultFun -> PLC.DefaultFun
 cakeToFun = \case
 
 funToCake :: PLC.DefaultFun -> Cake.DefaultFun
-funToCake = \case
+funToCake = error "You can't convert PLC functions to cake functions"
 
-constToCake :: PLC.Some (PLC.ValueOf PLC.DefaultUni) -> Cake.Some (Cake.ValueOf Cake.DefaultUni)
-constToCake (PLC.Some val) = Cake.Some (valToCake val)
+constToCake :: PLC.Some (PLC.ValueOf PLC.DefaultUni) -> Cake.Const
+constToCake (PLC.Some val) = valToCake val
 
-valToCake :: PLC.ValueOf PLC.DefaultUni a -> Cake.ValueOf Cake.DefaultUni a
-valToCake (PLC.ValueOf uni a) = Cake.ValueOf (uniToCake uni) a
-
-uniToCake :: forall k (a :: k). PLC.DefaultUni (PLC.Esc a) -> Cake.DefaultUni (Cake.Esc a)
-uniToCake = \ case
-    PLC.DefaultUniInteger    -> Cake.DefaultUniInteger
-    PLC.DefaultUniByteString -> Cake.DefaultUniByteString
-    PLC.DefaultUniString     -> Cake.DefaultUniString
-    PLC.DefaultUniUnit       -> Cake.DefaultUniUnit
-    PLC.DefaultUniBool       -> Cake.DefaultUniBool
-    PLC.DefaultUniProtoList  -> Cake.DefaultUniProtoList
-    PLC.DefaultUniProtoPair  -> Cake.DefaultUniProtoPair
-    PLC.DefaultUniApply f a  -> Cake.DefaultUniApply (uniToCake f) (uniToCake a)
-    PLC.DefaultUniData       -> Cake.DefaultUniData
+valToCake :: PLC.ValueOf PLC.DefaultUni a -> Cake.Const
+valToCake (PLC.ValueOf uni a) = case uni of
+  PLC.DefaultUniInteger    -> Cake.ConstInteger a
+  PLC.DefaultUniString     -> Cake.ConstString (unpack a)
+  PLC.DefaultUniBool       -> Cake.ConstBool a
+  PLC.DefaultUniUnit       -> Cake.ConstUnit
+  PLC.DefaultUniByteString -> Cake.ConstByteString a
+  u                        -> error $ "we don't yet handle " ++ show u
 
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
 nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn str (Cake.Index ix)

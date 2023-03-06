@@ -360,24 +360,18 @@ library purecake
     PureCake.TestHarness
   other-modules:
     PureCake.PlutusCore.Builtin
-    PureCake.PlutusCore.Builtin.Emitter
     PureCake.PlutusCore.DeBruijn
-    PureCake.PlutusCore.Default.Builtins
-    PureCake.PlutusCore.Default.Universe
-    PureCake.PlutusCore.Evaluation.Machine.BuiltinCostModel
-    PureCake.PlutusCore.Evaluation.Machine.CostingFun.Core
-    PureCake.PlutusCore.Evaluation.Machine.CostingFun.JSON
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
-    PureCake.PlutusCore.Evaluation.Machine.ExBudgetingDefaults
     PureCake.PlutusCore.Evaluation.Machine.Exception
     PureCake.PlutusCore.Evaluation.Machine.ExMemory
     PureCake.PlutusCore.Evaluation.Machine.MachineParameters
     PureCake.PlutusCore.Evaluation.Result
-    PureCake.ToPureCake
     PureCake.UntypedPlutusCore.Core
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
+
+    PureCake.ToPureCake
 
     ErrorCode
     PlutusCore.Generators.QuickCheck.Builtin

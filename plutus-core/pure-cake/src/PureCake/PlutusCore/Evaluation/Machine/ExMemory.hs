@@ -15,7 +15,6 @@ module PureCake.PlutusCore.Evaluation.Machine.ExMemory
   ) where
 
 import Control.Monad.RWS.Strict
-import Data.Aeson
 import Data.SatInt
 import Language.Haskell.TH.Syntax (Lift)
 
@@ -26,7 +25,6 @@ newtype ExMemory = ExMemory CostingInteger
   deriving stock (Eq, Ord, Show, Lift)
   deriving newtype (Num)
   deriving (Semigroup, Monoid) via (Sum CostingInteger)
-  deriving (FromJSON, ToJSON) via CostingInteger
 
 -- | Counts CPU units in picoseconds: maximum value for SatInt is 2^63 ps, or
 -- appproximately 106 days.
@@ -34,7 +32,6 @@ newtype ExCPU = ExCPU CostingInteger
   deriving stock (Eq, Ord, Show, Lift)
   deriving newtype (Num)
   deriving (Semigroup, Monoid) via (Sum CostingInteger)
-  deriving (FromJSON, ToJSON) via CostingInteger
 
 class ExMemoryUsage a where
     -- Inlining the implementations of this method gave us a 1-2% speedup.
