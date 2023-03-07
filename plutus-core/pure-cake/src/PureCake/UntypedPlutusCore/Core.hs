@@ -47,7 +47,9 @@ data Const =
   | ConstBool Bool
   | ConstByteString ByteString
   | ConstUnit
-  deriving (Eq, Show)
+  | ConstPair Const Const
+  | ConstList [Const]
+  deriving stock (Eq, Show)
 
 data DefaultFun
   deriving stock (Ord, Eq, Show)

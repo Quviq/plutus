@@ -90,12 +90,18 @@ constToCake (PLC.Some val) = valToCake val
 
 valToCake :: PLC.ValueOf PLC.DefaultUni a -> Cake.Const
 valToCake (PLC.ValueOf uni a) = case uni of
-  PLC.DefaultUniInteger    -> Cake.ConstInteger a
-  PLC.DefaultUniString     -> Cake.ConstString (unpack a)
-  PLC.DefaultUniBool       -> Cake.ConstBool a
-  PLC.DefaultUniUnit       -> Cake.ConstUnit
-  PLC.DefaultUniByteString -> Cake.ConstByteString a
-  u                        -> error $ "we don't yet handle " ++ show u
+  PLC.DefaultUniInteger                         -> Cake.ConstInteger a
+  PLC.DefaultUniString                          -> Cake.ConstString (unpack a)
+  PLC.DefaultUniBool                            -> Cake.ConstBool a
+  PLC.DefaultUniUnit                            -> Cake.ConstUnit
+  PLC.DefaultUniByteString                      -> Cake.ConstByteString a
+  PLC.DefaultUniApply
+    PLC.DefaultUniProtoList
+    u -> Cake.ConstList (valToCake . PLC.ValueOf u <$> a)
+  PLC.DefaultUniApply
+    (PLC.DefaultUniApply PLC.DefaultUniProtoPair u1)
+    u2 -> Cake.ConstPair (valToCake $ PLC.ValueOf u1 $ fst a) (valToCake $ PLC.ValueOf u2 $ snd a)
+  u                                             -> error $ "we don't yet handle " ++ show u
 
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
 nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn str (Cake.Index ix)
