@@ -66,7 +66,7 @@ runCake =
   . termToCake
 
 prop_run_PLC_Cake :: Property
-prop_run_PLC_Cake =
+prop_run_PLC_Cake = withMaxSuccess 10000 $
   forAllShrink genTypeAndTerm_ shrinkClosedTypedTerm $ \ (_, tm) ->
     let etm' = runExcept $ do
           tcConfig <- PLC.getDefTypeCheckConfig noProvenance
