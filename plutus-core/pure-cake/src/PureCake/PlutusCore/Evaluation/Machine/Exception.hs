@@ -1,17 +1,8 @@
--- editorconfig-checker-disable-file
--- | The exceptions that an abstract machine can throw.
-
--- appears in the generated instances
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
-
-{-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE RankNTypes   #-}
 
 module PureCake.PlutusCore.Evaluation.Machine.Exception
     ( UnliftingError (..)
@@ -20,26 +11,36 @@ module PureCake.PlutusCore.Evaluation.Machine.Exception
     , EvaluationError (..)
     , AsEvaluationError (..)
     , ErrorWithCause (..)
-    , EvaluationException
-    , throwing_
+    , CekUserError(..)
+    , AsEvaluationFailure (..)
+    , EvaluationResult (..)
     , throwingWithCause
     ) where
 
 import PlutusPrelude
 
-import PureCake.PlutusCore.Evaluation.Result
+import PureCake.PlutusCore.Evaluation.Machine.ExBudget
+import PureCake.UntypedPlutusCore.Core
 
 import Control.Lens
-import Control.Monad.Error.Lens (throwing_)
 import Control.Monad.Except
-import Data.String (IsString)
 import Data.Text (Text)
+
+class AsEvaluationFailure err where
+  _EvaluationFailure :: Prism' err ()
+
+_EvaluationFailureVia :: Eq err => err -> Prism' err ()
+_EvaluationFailureVia failure = prism (const failure) $ \a -> when (a /= failure) $ Left a
+
+data EvaluationResult a
+    = EvaluationSuccess !a
+    | EvaluationFailure
+    deriving stock (Show, Eq, Functor)
 
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
     = UnliftingErrorE Text
     deriving stock (Show, Eq)
-    deriving newtype (IsString, Semigroup, NFData)
 
 -- | The type of errors that 'readKnown' and 'makeKnown' can return.
 data KnownTypeError
@@ -47,7 +48,7 @@ data KnownTypeError
     deriving stock (Eq)
 
 -- | Errors which can occur during a run of an abstract machine.
-data MachineError fun
+data MachineError
     = NonPolymorphicInstantiationMachineError
       -- ^ An attempt to reduce a not immediately reducible type instantiation.
     | NonWrapUnwrappedMachineError
@@ -62,17 +63,23 @@ data MachineError fun
       -- ^ A builtin expected a term argument, but something else was received
     | UnexpectedBuiltinTermArgumentMachineError
       -- ^ A builtin received a term argument when something else was expected
-    | UnknownBuiltin fun
-    deriving stock (Show, Eq, Functor, Generic)
+    | UnknownBuiltin DefaultFun
+    deriving stock (Show, Eq)
 
 -- | The type of errors (all of them) which can occur during evaluation
 -- (some are used-caused, some are internal).
-data EvaluationError user internal
-    = InternalEvaluationError internal
+data EvaluationError
+    = InternalEvaluationError MachineError
       -- ^ Indicates bugs.
-    | UserEvaluationError user
+    | UserEvaluationError CekUserError
       -- ^ Indicates user errors.
-    deriving stock (Show, Eq, Functor, Generic)
+    deriving stock (Show, Eq)
+
+data CekUserError
+    -- @plutus-errors@ prevents this from being strict. Not that it matters anyway.
+    = CekOutOfExError ExRestrictingBudget -- ^ The final overspent (i.e. negative) budget.
+    | CekEvaluationFailure -- ^ Error has been called or a builtin application has failed
+    deriving stock (Show, Eq)
 
 mtraverse makeClassyPrisms
     [ ''UnliftingError
@@ -80,31 +87,28 @@ mtraverse makeClassyPrisms
     , ''EvaluationError
     ]
 
-instance internal ~ MachineError fun => AsMachineError (EvaluationError user internal) fun where
+instance AsMachineError EvaluationError where
     _MachineError = _InternalEvaluationError
-instance AsEvaluationFailure user => AsEvaluationFailure (EvaluationError user internal) where
+
+instance AsEvaluationFailure CekUserError where
+    _EvaluationFailure = _EvaluationFailureVia CekEvaluationFailure
+
+instance AsEvaluationFailure EvaluationError where
     _EvaluationFailure = _UserEvaluationError . _EvaluationFailure
 
 -- | An error and (optionally) what caused it.
-data ErrorWithCause err cause = ErrorWithCause
-    { _ewcError :: err
-    , _ewcCause :: Maybe cause
-    } deriving stock (Eq, Functor, Foldable, Traversable, Generic, Show)
-    deriving anyclass (NFData)
+data ErrorWithCause = ErrorWithCause
+    { _ewcError :: EvaluationError
+    , _ewcCause :: Maybe Term
+    } deriving stock (Eq, Show)
 
-instance AsEvaluationFailure err => AsEvaluationFailure (ErrorWithCause err cause) where
+instance AsEvaluationFailure ErrorWithCause where
     _EvaluationFailure = iso _ewcError (flip ErrorWithCause Nothing) . _EvaluationFailure
-
-type EvaluationException user internal =
-    ErrorWithCause (EvaluationError user internal)
 
 -- | "Prismatically" throw an error and its (optional) cause.
 throwingWithCause
-    -- Binds exc so it can be used as a convenient parameter with TypeApplications
-    :: forall exc e t term m x
-    . (exc ~ ErrorWithCause e term, MonadError exc m)
-    => AReview e t -> t -> Maybe term -> m x
+    :: (MonadError ErrorWithCause m)
+    => AReview EvaluationError t -> t -> Maybe Term -> m x
 throwingWithCause l t cause = reviews l (\e -> throwError $ ErrorWithCause e cause) t
 
-deriving anyclass instance
-    (Show (ErrorWithCause err cause), Typeable cause, Typeable err) => Exception (ErrorWithCause err cause)
+deriving anyclass instance Exception ErrorWithCause

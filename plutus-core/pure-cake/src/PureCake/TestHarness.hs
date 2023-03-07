@@ -18,7 +18,6 @@ import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.PlutusCore.Evaluation.Machine.MachineParameters qualified as Cake
-import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
@@ -42,8 +41,7 @@ logEmitter :: Cake.EmitterMode
 logEmitter = error "TODO"
 
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-       -> ( Either Cake.CekEvaluationException
-                   (Cake.Term Cake.NamedDeBruijn)
+       -> ( Either Cake.ErrorWithCause Cake.Term
           , Cake.RestrictingSt
           , [Text] )
 runPLC tm =
@@ -57,8 +55,8 @@ runPLC tm =
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> ( Either Cake.CekEvaluationException
-                    (Cake.Term Cake.NamedDeBruijn)
+        -> ( Either Cake.ErrorWithCause
+                    Cake.Term
            , Cake.RestrictingSt
            , [Text] )
 runCake =

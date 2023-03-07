@@ -1,11 +1,4 @@
--- editorconfig-checker-disable-file
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE StrictData            #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE UndecidableInstances  #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
     ( RestrictingSt (..)

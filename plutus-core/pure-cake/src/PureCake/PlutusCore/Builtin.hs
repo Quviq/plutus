@@ -1,12 +1,3 @@
--- | Reexports from modules from the @Builtin@ folder.
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ConstraintKinds #-}
-
 module PureCake.PlutusCore.Builtin where
 
 data BuiltinRuntime val = BuiltinRuntime

@@ -22,19 +22,18 @@ import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
 
 restrictingStToCake :: PLC.RestrictingSt -> Cake.RestrictingSt
 restrictingStToCake (PLC.RestrictingSt exBudget) =
   Cake.RestrictingSt (exRestrictingBudgetToCake exBudget)
 
 cekExceptionToCake :: PLC.CekEvaluationException PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun
-                   -> Cake.CekEvaluationException
+                   -> Cake.ErrorWithCause
 cekExceptionToCake (PLC.ErrorWithCause e mc) =
   Cake.ErrorWithCause (evaluationErrorToCake e) (termToCake <$> mc)
 
 evaluationErrorToCake :: PLC.EvaluationError PLC.CekUserError (PLC.MachineError PLC.DefaultFun)
-                      -> Cake.EvaluationError Cake.CekUserError (Cake.MachineError Cake.DefaultFun)
+                      -> Cake.EvaluationError
 evaluationErrorToCake (PLC.InternalEvaluationError i) =
   Cake.InternalEvaluationError (machineErrorToCake i)
 evaluationErrorToCake (PLC.UserEvaluationError e) =
@@ -46,7 +45,7 @@ userErrorToCake (PLC.CekOutOfExError e) =
 userErrorToCake PLC.CekEvaluationFailure = Cake.CekEvaluationFailure
 
 machineErrorToCake :: PLC.MachineError PLC.DefaultFun
-                   -> Cake.MachineError Cake.DefaultFun
+                   -> Cake.MachineError
 machineErrorToCake = \case
   PLC.NonPolymorphicInstantiationMachineError   -> Cake.NonPolymorphicInstantiationMachineError
   PLC.NonWrapUnwrappedMachineError              -> Cake.NonWrapUnwrappedMachineError
@@ -67,8 +66,8 @@ exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
 exBudgetToCake :: PLC.ExBudget -> Cake.ExBudget
 exBudgetToCake (PLC.ExBudget cpu mem) = Cake.ExBudget (coerce cpu) (coerce mem)
 
-termToCake :: PLC.Term  PLC.NamedDeBruijn  PLC.DefaultUni PLC.DefaultFun ()
-           -> Cake.Term Cake.NamedDeBruijn
+termToCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
+           -> Cake.Term
 termToCake = \ case
   PLC.Var _ name      -> Cake.Var (nameToCake name)
   PLC.LamAbs _ name t -> Cake.LamAbs (nameToCake name) (termToCake t)

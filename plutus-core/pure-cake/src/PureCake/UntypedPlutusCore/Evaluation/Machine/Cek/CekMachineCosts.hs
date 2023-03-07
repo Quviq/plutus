@@ -1,9 +1,3 @@
--- editorconfig-checker-disable-file
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData        #-}
-
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
     ( CekMachineCosts(..)
     , defaultCekMachineCosts

@@ -1,8 +1,3 @@
-{-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE DeriveAnyClass #-}
-
--- | Support for using de Bruijn indices for term and type names.
 module PureCake.PlutusCore.DeBruijn
     ( Index (..)
     , NamedDeBruijn (..)

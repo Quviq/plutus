@@ -18,28 +18,28 @@ module PureCake.UntypedPlutusCore.Core
 
 import PlutusPrelude
 
-import PureCake.PlutusCore.Evaluation.Machine.ExMemory
-
 import Data.ByteString
+
+import PureCake.PlutusCore.DeBruijn
 
 -- Making all the fields strict gives us a couple of percent in benchmarks
 -- See Note [Term constructor ordering and numbers]
-data Term name
-    = Var name
-    | LamAbs name (Term name)
-    | Apply (Term name) (Term name)
-    | Force (Term name)
-    | Delay (Term name)
+data Term
+    = Var NamedDeBruijn
+    | LamAbs NamedDeBruijn Term
+    | Apply Term Term
+    | Force Term
+    | Delay Term
     | Constant Const
     | Builtin DefaultFun
     | Error
-    deriving stock (Show, Functor, Eq)
+    deriving stock (Show, Eq)
 
-data Version ann
-    = Version ann Natural Natural Natural
-    deriving stock (Eq, Show, Functor)
+data Version
+    = Version Natural Natural Natural
+    deriving stock (Eq, Show)
 
-newtype Binder name = Binder { unBinder :: name }
+newtype Binder = Binder { unBinder :: NamedDeBruijn }
 
 data Const =
     ConstInteger Integer
@@ -53,6 +53,3 @@ data Const =
 
 data DefaultFun
   deriving stock (Ord, Eq, Show)
-
-instance ExMemoryUsage DefaultFun where
-    memoryUsage _ = 1

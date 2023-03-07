@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase   #-}
-{-# LANGUAGE EmptyCase   #-}
+{-# LANGUAGE EmptyCase    #-}
 
 module PureCake.PlutusCore.Evaluation.Machine.MachineParameters where
 
