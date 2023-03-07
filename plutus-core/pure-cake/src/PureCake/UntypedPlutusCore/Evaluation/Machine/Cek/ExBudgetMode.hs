@@ -12,7 +12,6 @@ import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.PlutusCore.Evaluation.Machine.Exception
-import PureCake.PlutusCore.Evaluation.Machine.ExMemory (ExCPU (..), ExMemory (..))
 
 import Control.Monad.Except
 import Data.Primitive.PrimArray

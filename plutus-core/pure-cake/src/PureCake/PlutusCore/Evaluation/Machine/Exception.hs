@@ -28,11 +28,6 @@ newtype UnliftingError
     = UnliftingErrorE Text
     deriving stock (Show, Eq)
 
--- | The type of errors that 'readKnown' and 'makeKnown' can return.
-data KnownTypeError
-    = KnownTypeUnliftingError UnliftingError
-    deriving stock (Eq)
-
 -- | Errors which can occur during a run of an abstract machine.
 data MachineError
     = NonPolymorphicInstantiationMachineError

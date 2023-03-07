@@ -363,7 +363,6 @@ library purecake
     PureCake.PlutusCore.DeBruijn
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
     PureCake.PlutusCore.Evaluation.Machine.Exception
-    PureCake.PlutusCore.Evaluation.Machine.ExMemory
     PureCake.PlutusCore.Evaluation.Machine.MachineParameters
     PureCake.UntypedPlutusCore.Core
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts

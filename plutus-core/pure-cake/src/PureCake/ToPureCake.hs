@@ -17,7 +17,6 @@ import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.PlutusCore.Evaluation.Machine.Exception qualified as Cake
-import PureCake.PlutusCore.Evaluation.Machine.ExMemory qualified as Cake
 import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
@@ -80,6 +79,7 @@ termToCake = \ case
 
 cakeToFun :: Cake.DefaultFun -> PLC.DefaultFun
 cakeToFun = \case
+  Cake.AddInteger -> PLC.AddInteger
 
 funToCake :: PLC.DefaultFun -> Cake.DefaultFun
 funToCake = error "You can't convert PLC functions to cake functions"

@@ -5,7 +5,7 @@ module PureCake.UntypedPlutusCore.Core
     , Binder (..)
     , Term (..)
     , Const(..)
-    , DefaultFun
+    , DefaultFun (..)
     ) where
 
 import PlutusPrelude
@@ -41,5 +41,5 @@ data Const =
   | ConstList [Const]
   deriving stock (Eq, Show)
 
-data DefaultFun
+data DefaultFun = AddInteger
   deriving stock (Ord, Eq, Show)

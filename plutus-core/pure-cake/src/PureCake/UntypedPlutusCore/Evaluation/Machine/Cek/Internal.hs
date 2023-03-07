@@ -25,12 +25,12 @@ import PlutusPrelude (coerce)
 
 import PureCake.UntypedPlutusCore.Core
 
-
+import Data.Functor (($>))
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
-import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime)
+import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime (..), MakeKnownM(..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
-import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..))
+import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExBudget)
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause,
                                                          MachineError (..), CekUserError (..),
                                                          throwingWithCause, EvaluationResult (..))
@@ -42,8 +42,6 @@ import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Except (MonadError (..))
 import Control.Monad.ST (ST, runST)
 import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
-import Data.DList (DList)
-import Data.Semigroup (stimes)
 import Data.Text (Text)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
@@ -139,17 +137,7 @@ type Slippage = Word8
 defaultSlippage :: Slippage
 defaultSlippage = 200
 
-{- Note [DList-based emitting]
-Instead of emitting log lines one by one, we have a 'DList' of them in the type of emitters
-(see 'CekEmitter'). That 'DList' comes from 'Emitter' and allows the latter to be an efficient
-monad for logging. We leak this implementation detail in the type of emitters, because it's the
-most efficient way of doing emitting, see
-https://github.com/input-output-hk/plutus/pull/4421#issuecomment-1059186586
--}
-
--- See Note [DList-based emitting].
--- | The CEK machine is parameterized over an emitter function, similar to 'CekBudgetSpender'.
-type CekEmitter s = DList Text -> CekM s ()
+type CekEmitter s = [String] -> CekM s ()
 
 -- | Runtime emitter info, similar to 'ExBudgetInfo'.
 data CekEmitterInfo s = CekEmitterInfo {
@@ -163,7 +151,7 @@ newtype EmitterMode = EmitterMode
     }
 
 -- | Implicit parameter for the builtin runtime.
-type GivenCekRuntime = (?cekRuntime :: (BuiltinsRuntime DefaultFun CekValue))
+type GivenCekRuntime = (?cekRuntime :: BuiltinsRuntime DefaultFun CekValue)
 -- | Implicit parameter for the log emitter reference.
 type GivenCekEmitter s = (?cekEmitter :: CekEmitter s)
 -- | Implicit parameter for budget spender.
@@ -246,7 +234,7 @@ dischargeCekValue = \case
     -- We only return a discharged builtin application when (a) it's being returned by the machine,
     -- or (b) it's needed for an error message.
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
-    -- VBuiltin _ term _                    -> term
+    VBuiltin _ term _                    -> term
 
 data Context
     = FrameApplyFun !CekValue !Context
@@ -292,23 +280,22 @@ lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
 -- 'makeKnown' or a partial builtin application depending on whether the built-in function is
 -- fully saturated or not.
--- evalBuiltinApp
---     :: (GivenCekReqs s)
---     => DefaultFun
---     -> Term
---     -> BuiltinRuntime CekValue
---     -> CekM s CekValue
--- evalBuiltinApp fun term runtime = case runtime of
---     BuiltinResult cost getX -> do
---         spendBudgetCek (BBuiltinApp fun) cost
---         case getX of
---             MakeKnownFailure logs err       -> do
---                 ?cekEmitter logs
---                 throwKnownTypeErrorWithCause term err
---             MakeKnownSuccess x              -> pure x
---             MakeKnownSuccessWithLogs logs x -> ?cekEmitter logs $> x
---     _ -> pure $ VBuiltin fun term runtime
--- {-# INLINE evalBuiltinApp #-}
+evalBuiltinApp
+    :: (GivenCekReqs s)
+    => DefaultFun
+    -> Term
+    -> BuiltinRuntime CekValue
+    -> CekM s CekValue
+evalBuiltinApp fun term runtime = case runtime of
+    BuiltinResult cost getX -> do
+        spendBudgetCek (BBuiltinApp fun) cost
+        case getX of
+            MakeKnownFailure logs err       -> do
+                ?cekEmitter logs
+                throwingWithCause (InternalEvaluationError err) (Just term)
+            MakeKnownSuccess x              -> pure x
+            MakeKnownSuccessWithLogs logs x -> ?cekEmitter logs $> x
+    _ -> pure $ VBuiltin fun term runtime
 
 -- See Note [Compilation peculiarities].
 -- | The entering point to the CEK machine's engine.
@@ -357,11 +344,11 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- s ; ρ ▻ abs α L  ↦  s ◅ abs α (L , ρ)
     -- s ; ρ ▻ con c  ↦  s ◅ con c
     -- s ; ρ ▻ builtin bn  ↦  s ◅ builtin bn arity arity [] [] ρ
-    -- computeCek !unbudgetedSteps !ctx !_ (Builtin _ bn) = do
-    --     !unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
-    --     let meaning = lookupBuiltin bn ?cekRuntime
-    --     -- 'Builtin' is fully discharged.
-    --     returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin () bn) meaning)
+    computeCek !unbudgetedSteps !ctx !_ (Builtin bn) = do
+        !unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
+        let meaning = unBuiltinsRuntime ?cekRuntime bn
+        -- 'Builtin' is fully discharged.
+        returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin bn) meaning)
     -- s ; ρ ▻ error A  ↦  <> A
     computeCek !_ !_ !_ Error =
         throwingWithCause (UserEvaluationError CekEvaluationFailure) Nothing
@@ -407,20 +394,20 @@ enterComputeCek = computeCek (toWordArray 0) where
         -> CekValue
         -> CekM s Term
     forceEvaluate !unbudgetedSteps !ctx (VDelay body env) = computeCek unbudgetedSteps ctx env body
-    -- forceEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) = do
-    --     -- @term@ is fully discharged, and so @term'@ is, hence we can put it in a 'VBuiltin'.
-    --     let term' = Force () term
-    --     case runtime of
-    --         -- It's only possible to force a builtin application if the builtin expects a type
-    --         -- argument next.
-    --         BuiltinExpectForce runtime' -> do
-    --             -- We allow a type argument to appear last in the type of a built-in function,
-    --             -- otherwise we could just assemble a 'VBuiltin' without trying to evaluate the
-    --             -- application.
-    --             res <- evalBuiltinApp fun term' runtime'
-    --             returnCek unbudgetedSteps ctx res
-    --         _ ->
-    --             throwingWithCause _MachineError BuiltinTermArgumentExpectedMachineError (Just term')
+    forceEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) = do
+        -- @term@ is fully discharged, and so @term'@ is, hence we can put it in a 'VBuiltin'.
+        let term' = Force term
+        case runtime of
+            -- It's only possible to force a builtin application if the builtin expects a type
+            -- argument next.
+            BuiltinExpectForce runtime' -> do
+                -- We allow a type argument to appear last in the type of a built-in function,
+                -- otherwise we could just assemble a 'VBuiltin' without trying to evaluate the
+                -- application.
+                res <- evalBuiltinApp fun term' runtime'
+                returnCek unbudgetedSteps ctx res
+            _ ->
+                throwingWithCause (InternalEvaluationError BuiltinTermArgumentExpectedMachineError) (Just term')
     forceEvaluate !_ !_ val =
         throwingDischarged (InternalEvaluationError NonPolymorphicInstantiationMachineError) val
 
@@ -441,19 +428,20 @@ enterComputeCek = computeCek (toWordArray 0) where
         computeCek unbudgetedSteps ctx (Env.cons arg env) body
     -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
     -- 'VCon'. After that the bangs here were making things a tiny bit slower and so we removed them.
-    -- applyEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) arg = do
-    --     let argTerm = dischargeCekValue arg
-    --         -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
-    --         -- in a 'VBuiltin'.
-    --         term' = Apply () term argTerm
-    --     case runtime of
-    --         -- It's only possible to apply a builtin application if the builtin expects a term
-    --         -- argument next.
-    --         BuiltinExpectArgument f -> do
-    --             res <- evalBuiltinApp fun term' $ f arg
-    --             returnCek unbudgetedSteps ctx res
-    --         _ ->
-    --             throwingWithCause _MachineError UnexpectedBuiltinTermArgumentMachineError (Just term')
+    applyEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) arg = do
+        let argTerm = dischargeCekValue arg
+            -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
+            -- in a 'VBuiltin'.
+            term' = Apply term argTerm
+        case runtime of
+            -- It's only possible to apply a builtin application if the builtin expects a term
+            -- argument next.
+            BuiltinExpectArgument f -> do
+                res <- evalBuiltinApp fun term' $ f arg
+                returnCek unbudgetedSteps ctx res
+            _ ->
+                throwingWithCause (InternalEvaluationError UnexpectedBuiltinTermArgumentMachineError)
+                                  (Just term')
     applyEvaluate !_ !_ val _ =
         throwingDischarged (InternalEvaluationError NonFunctionalApplicationMachineError) val
 
@@ -466,7 +454,9 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- Skip index 7, that's the total counter!
     -- See Note [Structure of the step counter]
     {-# INLINE spend #-}
-    spend !i !w = unless (i == 7) $ let kind = toEnum i in spendBudgetCek (BStep kind) (stimes w (cekStepCost ?cekCosts kind))
+    spend !i !w = unless (i == 7) $
+      let kind = toEnum i in spendBudgetCek (BStep kind)
+                                            (stimesExBudget w (cekStepCost ?cekCosts kind))
 
     -- | Accumulate a step, and maybe spend the budget that has accumulated for a number of machine steps, but only if we've exceeded our slippage.
     stepAndMaybeSpend :: StepKind -> WordArray -> CekM s WordArray
