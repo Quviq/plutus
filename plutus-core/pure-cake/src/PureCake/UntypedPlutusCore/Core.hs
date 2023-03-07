@@ -1,11 +1,3 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE EmptyDataDeriving  #-}
 
 module PureCake.UntypedPlutusCore.Core
@@ -22,8 +14,6 @@ import Data.ByteString
 
 import PureCake.PlutusCore.DeBruijn
 
--- Making all the fields strict gives us a couple of percent in benchmarks
--- See Note [Term constructor ordering and numbers]
 data Term
     = Var NamedDeBruijn
     | LamAbs NamedDeBruijn Term

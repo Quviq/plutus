@@ -103,5 +103,5 @@ valToCake (PLC.ValueOf uni a) = case uni of
   u                                             -> error $ "we don't yet handle " ++ show u
 
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
-nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn str (Cake.Index ix)
+nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) (Cake.Index ix)
 

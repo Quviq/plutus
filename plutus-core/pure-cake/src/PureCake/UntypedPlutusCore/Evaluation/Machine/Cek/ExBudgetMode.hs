@@ -51,7 +51,7 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
             CekM $ writeMem memLeft'
             when (cpuLeft' < 0 || memLeft' < 0) $ do
                 let budgetLeft = ExBudget cpuLeft' memLeft'
-                throwingWithCause _EvaluationError
+                throwingWithCause
                     (UserEvaluationError . CekOutOfExError $ ExRestrictingBudget budgetLeft)
                     Nothing
         spender = CekBudgetSpender spend

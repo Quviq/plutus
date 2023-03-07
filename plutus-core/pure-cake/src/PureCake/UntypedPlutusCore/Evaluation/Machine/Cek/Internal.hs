@@ -26,20 +26,17 @@ import PlutusPrelude (coerce)
 import PureCake.UntypedPlutusCore.Core
 
 
-import Control.Monad.Error.Lens (throwing_)
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
 import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime)
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..))
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause,
-                                                         MachineError (..), _MachineError,
-                                                         throwingWithCause,
-                                                         AsEvaluationFailure (..), EvaluationResult (..))
+                                                         MachineError (..), CekUserError (..),
+                                                         throwingWithCause, EvaluationResult (..))
 import PureCake.PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
 
-import Control.Lens.Review (AReview)
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Except (MonadError (..))
@@ -182,11 +179,10 @@ newtype CekM s a = CekM
     } deriving newtype (Functor, Applicative, Monad)
 
 throwingDischarged
-    :: AReview EvaluationError t
-    -> t
+    :: EvaluationError
     -> CekValue
     -> CekM s x
-throwingDischarged l t = throwingWithCause l t . Just . dischargeCekValue
+throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
 
 instance MonadError ErrorWithCause (CekM s) where
     -- See Note [Throwing exceptions in ST].
@@ -289,8 +285,8 @@ lookupVarName :: forall s.
               -> CekM s CekValue
 lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
     case varEnv `Env.indexOne` coerce varIx of
-        Nothing  -> throwingWithCause _MachineError OpenTermEvaluatedMachineError $ Just var where
-            var = Var varName
+        Nothing  -> throwingWithCause (InternalEvaluationError OpenTermEvaluatedMachineError)
+                      $ Just (Var varName)
         Just val -> pure val
 
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
@@ -368,7 +364,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     --     returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin () bn) meaning)
     -- s ; ρ ▻ error A  ↦  <> A
     computeCek !_ !_ !_ Error =
-        throwing_ _EvaluationFailure
+        throwingWithCause (UserEvaluationError CekEvaluationFailure) Nothing
 
     {- | The returning phase of the CEK machine.
     Returns 'EvaluationSuccess' in case the context is empty, otherwise pops up one frame
@@ -426,7 +422,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     --         _ ->
     --             throwingWithCause _MachineError BuiltinTermArgumentExpectedMachineError (Just term')
     forceEvaluate !_ !_ val =
-        throwingDischarged _MachineError NonPolymorphicInstantiationMachineError val
+        throwingDischarged (InternalEvaluationError NonPolymorphicInstantiationMachineError) val
 
     -- | Apply a function to an argument and proceed.
     -- If the function is a lambda 'lam x ty body' then extend the environment with a binding of @v@
@@ -459,7 +455,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     --         _ ->
     --             throwingWithCause _MachineError UnexpectedBuiltinTermArgumentMachineError (Just term')
     applyEvaluate !_ !_ val _ =
-        throwingDischarged _MachineError NonFunctionalApplicationMachineError val
+        throwingDischarged (InternalEvaluationError NonFunctionalApplicationMachineError) val
 
     -- | Spend the budget that has been accumulated for a number of machine steps.
     spendAccumulatedBudget :: WordArray -> CekM s ()
