@@ -38,7 +38,6 @@ import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMac
 
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
--- import Control.Monad.Except (MonadError (..))
 import Control.Monad.ST (ST, runST)
 import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
 import Data.Text (Text)
