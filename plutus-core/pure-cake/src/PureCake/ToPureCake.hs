@@ -57,7 +57,7 @@ machineErrorToCake = \case
   PLC.UnknownBuiltin fun                        -> Cake.UnknownBuiltin (funToCake fun)
 
 unliftingErrorToCake :: PLC.UnliftingError -> Cake.UnliftingError
-unliftingErrorToCake = coerce
+unliftingErrorToCake (PLC.UnliftingErrorE txt) = Cake.UnliftingErrorE (unpack txt)
 
 exRestrictingBudgetToCake :: PLC.ExRestrictingBudget -> Cake.ExRestrictingBudget
 exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
@@ -106,3 +106,9 @@ valToCake (PLC.ValueOf uni a) = case uni of
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
 nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) (Cake.Index ix)
 
+instance Eq Cake.NamedDeBruijn where
+    -- ignoring actual names and only relying solely on debruijn indices
+    Cake.NamedDeBruijn _ ix1 == Cake.NamedDeBruijn _ ix2 = ix1 == ix2
+
+deriving instance Eq Cake.Term
+deriving instance Eq Cake.ErrorWithCause

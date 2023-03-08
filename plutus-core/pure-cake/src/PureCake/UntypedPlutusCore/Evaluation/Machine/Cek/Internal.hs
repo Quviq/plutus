@@ -2,8 +2,6 @@
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE ImplicitParams           #-}
-{-# LANGUAGE LambdaCase               #-}
-{-# LANGUAGE MultiParamTypeClasses    #-}
 {-# LANGUAGE NamedFieldPuns           #-}
 {-# LANGUAGE RankNTypes               #-}
 
@@ -19,6 +17,7 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , CekM (..)
     , MachineParameters(..)
     , runCekDeBruijn
+    , throwingWithCause
     )
 where
 
@@ -32,14 +31,14 @@ import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
 import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime (..), MakeKnownM(..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExBudget)
-import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause,
+import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause (..),
                                                          MachineError (..), CekUserError (..),
-                                                         throwingWithCause, EvaluationResult (..))
+                                                         EvaluationResult (..))
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
 
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
-import Control.Monad.Except (MonadError (..))
+-- import Control.Monad.Except (MonadError (..))
 import Control.Monad.ST (ST, runST)
 import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
 import Data.Text (Text)
@@ -178,19 +177,21 @@ throwingDischarged
     -> CekM s x
 throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
 
-instance MonadError ErrorWithCause (CekM s) where
+-- instance MonadError ErrorWithCause (CekM s) where
     -- See Note [Throwing exceptions in ST].
-    throwError = CekM . throwM
+throwError :: ErrorWithCause -> CekM s a
+throwError = CekM . throwM
 
-    -- See Note [Catching exceptions in ST].
-    a `catchError` h = CekM . unsafeIOToST $ aIO `catch` hIO where
-        aIO = unsafeRunCekM a
-        hIO = unsafeRunCekM . h
+-- See Note [Catching exceptions in ST].
+catchError :: CekM s a -> (ErrorWithCause -> CekM s a) -> CekM s a
+catchError a h = CekM . unsafeIOToST $ aIO `catch` hIO where
+    aIO = unsafeRunCekM a
+    hIO = unsafeRunCekM . h
 
-        -- | Unsafely run a 'CekM' computation in the 'IO' monad by converting the
-        -- underlying 'ST' to it.
-        unsafeRunCekM :: CekM s a -> IO a
-        unsafeRunCekM = unsafeSTToIO . unCekM
+    -- | Unsafely run a 'CekM' computation in the 'IO' monad by converting the
+    -- underlying 'ST' to it.
+    unsafeRunCekM :: CekM s a -> IO a
+    unsafeRunCekM = unsafeSTToIO . unCekM
 
 spendBudgetCek :: GivenCekSpender s => ExBudgetCategory -> ExBudget -> CekM s ()
 spendBudgetCek = let (CekBudgetSpender spend) = ?cekBudgetSpender in spend
@@ -206,7 +207,7 @@ dischargeCekValEnv valEnv = go 0
   -- The lamCnt is just a counter that measures how many lambda-abstractions
   -- we have descended in the `go` loop.
   go :: Word64 -> Term -> Term
-  go !lamCnt =  \case
+  go !lamCnt = \t0 -> case t0 of
     LamAbs name body -> LamAbs name $ go (lamCnt+1) body
     var@(Var (NamedDeBruijn _ ndbnIx)) -> let ix = coerce ndbnIx :: Word64  in
         if lamCnt >= ix
@@ -228,7 +229,7 @@ dischargeCekValEnv valEnv = go 0
 -- | Convert a 'CekValue' into a 'Term' by replacing all bound variables with the terms
 -- they're bound to (which themselves have to be obtain by recursively discharging values).
 dischargeCekValue :: CekValue -> Term
-dischargeCekValue = \case
+dischargeCekValue = \t -> case t of
     VCon val                           -> Constant val
     VDelay body env                    -> dischargeCekValEnv env $ Delay body
     -- 'computeCek' turns @LamAbs _ name body@ into @VLamAbs name body env@ where @env@ is an
@@ -249,8 +250,7 @@ data Context
     | NoFrame
     deriving stock (Show)
 
--- | A 'MonadError' version of 'try'.
-tryError :: MonadError e m => m a -> m (Either e a)
+tryError :: CekM s a -> CekM s (Either ErrorWithCause a)
 tryError a = (Right <$> a) `catchError` (pure . Left)
 
 runCekM
@@ -491,3 +491,6 @@ runCekDeBruijn params mode emitMode term =
     runCekM params mode emitMode $ do
         spendBudgetCek BStartup (cekStartupCost ?cekCosts)
         enterComputeCek NoFrame Env.empty term
+
+throwingWithCause :: EvaluationError -> Maybe Term -> CekM s x
+throwingWithCause e cause = throwError $ ErrorWithCause e cause

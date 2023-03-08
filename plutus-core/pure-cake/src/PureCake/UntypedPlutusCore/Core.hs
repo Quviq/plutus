@@ -23,7 +23,7 @@ data Term
     | Constant Const
     | Builtin DefaultFun
     | Error
-    deriving stock (Show, Eq)
+    deriving stock Show
 
 data Version
     = Version Natural Natural Natural

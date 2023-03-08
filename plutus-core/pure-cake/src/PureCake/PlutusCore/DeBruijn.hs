@@ -19,6 +19,6 @@ deBruijnInitIndex = Index 0
 data NamedDeBruijn = NamedDeBruijn { ndbnString :: !String, ndbnIndex :: !Index }
     deriving stock (Show)
 
-instance Eq NamedDeBruijn where
-    -- ignoring actual names and only relying solely on debruijn indices
-    (NamedDeBruijn _ ix1) == (NamedDeBruijn _ ix2) = ix1 == ix2
+-- instance Eq NamedDeBruijn where
+--     -- ignoring actual names and only relying solely on debruijn indices
+--     (NamedDeBruijn _ ix1) == (NamedDeBruijn _ ix2) = ix1 == ix2

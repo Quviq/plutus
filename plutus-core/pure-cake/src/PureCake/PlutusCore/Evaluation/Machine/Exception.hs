@@ -7,16 +7,12 @@ module PureCake.PlutusCore.Evaluation.Machine.Exception
     , ErrorWithCause (..)
     , CekUserError(..)
     , EvaluationResult (..)
-    , throwingWithCause
     ) where
 
 import PlutusPrelude
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.UntypedPlutusCore.Core
-
-import Control.Monad.Except
-import Data.Text (Text)
 
 data EvaluationResult a
     = EvaluationSuccess !a
@@ -25,7 +21,7 @@ data EvaluationResult a
 
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
-    = UnliftingErrorE Text
+    = UnliftingErrorE String
     deriving stock (Show, Eq)
 
 -- | Errors which can occur during a run of an abstract machine.
@@ -66,11 +62,6 @@ data CekUserError
 data ErrorWithCause = ErrorWithCause
     { _ewcError :: EvaluationError
     , _ewcCause :: Maybe Term
-    } deriving stock (Eq, Show)
-
-throwingWithCause
-    :: (MonadError ErrorWithCause m)
-    => EvaluationError -> Maybe Term -> m x
-throwingWithCause e cause = throwError $ ErrorWithCause e cause
+    } deriving stock Show
 
 deriving anyclass instance Exception ErrorWithCause
