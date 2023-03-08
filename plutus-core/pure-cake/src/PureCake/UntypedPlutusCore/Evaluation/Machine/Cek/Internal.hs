@@ -166,7 +166,7 @@ type GivenCekSpender s = (?cekBudgetSpender :: CekBudgetSpender s)
 -- | Constraint requiring all of the machine's implicit parameters.
 type GivenCekReqs s = (GivenCekEmitter s, GivenCekSpender s)
 
--- | The monad the CEK machine runs in.
+-- TODO: this needs to move to IO!
 type CekM s a = ST s a
 
 throwingDischarged
