@@ -45,7 +45,7 @@ runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
 runPLC tm =
   let (e, c, l) = PLC.runCekDeBruijn PLC.defaultCekParameters
                                      (PLC.restricting testBudget)
-                                     PLC.logEmitter
+                                     PLC.noEmitter
                                      tm
   in ( either (Left . cekExceptionToCake) (Right . termToCake) e
      , restrictingStToCake c
