@@ -82,7 +82,8 @@ cakeToFun = \case
   Cake.AddInteger -> PLC.AddInteger
 
 funToCake :: PLC.DefaultFun -> Cake.DefaultFun
-funToCake = error "You can't convert PLC functions to cake functions"
+funToCake PLC.AddInteger = Cake.AddInteger
+funToCake fun            = error $ "You can't convert PLC function " ++ show fun ++ " to cake functions"
 
 constToCake :: PLC.Some (PLC.ValueOf PLC.DefaultUni) -> Cake.Const
 constToCake (PLC.Some val) = valToCake val
