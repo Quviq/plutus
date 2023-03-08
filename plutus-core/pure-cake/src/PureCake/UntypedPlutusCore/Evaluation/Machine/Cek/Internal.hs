@@ -14,7 +14,6 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , CekEmitterInfo(..)
     , EmitterMode(..)
     , CekM
-    , MachineParameters(..)
     , runCekDeBruijn
     , throwingWithCause
     )
@@ -23,7 +22,7 @@ where
 import PlutusPrelude (coerce)
 
 import PureCake.UntypedPlutusCore.Core
-
+import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
 import Data.Functor (($>))
 import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
 import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
@@ -33,8 +32,6 @@ import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExB
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause (..),
                                                          MachineError (..), CekUserError (..),
                                                          EvaluationResult (..))
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
-
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.ST (ST, runST)
@@ -42,12 +39,6 @@ import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
 import Data.Text (Text)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
-
-data MachineParameters =
-    MachineParameters {
-      machineCosts    :: CekMachineCosts
-    , builtinsRuntime :: BuiltinsRuntime DefaultFun CekValue
-    }
 
 data StepKind
     = BConst
@@ -167,16 +158,13 @@ newtype EmitterMode = EmitterMode
     { unEmitterMode :: forall s. ST s ExBudget -> ST s (CekEmitterInfo s)
     }
 
--- | Implicit parameter for the builtin runtime.
-type GivenCekRuntime = (?cekRuntime :: BuiltinsRuntime DefaultFun CekValue)
 -- | Implicit parameter for the log emitter reference.
 type GivenCekEmitter s = (?cekEmitter :: CekEmitter s)
 -- | Implicit parameter for budget spender.
 type GivenCekSpender s = (?cekBudgetSpender :: CekBudgetSpender s)
-type GivenCekCosts = (?cekCosts :: CekMachineCosts)
 
 -- | Constraint requiring all of the machine's implicit parameters.
-type GivenCekReqs s = (GivenCekRuntime, GivenCekEmitter s, GivenCekSpender s, GivenCekCosts)
+type GivenCekReqs s = (GivenCekEmitter s, GivenCekSpender s)
 
 -- | The monad the CEK machine runs in.
 type CekM s a = ST s a
@@ -262,21 +250,25 @@ tryError a = (Right <$> a) `catchError` (pure . Left)
 
 runCekM
     :: forall a cost.
-       MachineParameters
-    -> ExBudgetMode cost
+       ExBudgetMode cost
     -> EmitterMode
     -> (forall s. GivenCekReqs s => CekM s a)
     -> (Either ErrorWithCause a, cost, [Text])
-runCekM (MachineParameters costs runtime) (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = runST $ do
-    ExBudgetInfo{_exBudgetModeSpender, _exBudgetModeGetFinal, _exBudgetModeGetCumulative} <- getExBudgetInfo
-    CekEmitterInfo{_cekEmitterInfoEmit, _cekEmitterInfoGetFinal} <- getEmitterMode _exBudgetModeGetCumulative
-    let ?cekRuntime = runtime
-        ?cekEmitter = _cekEmitterInfoEmit
-        ?cekBudgetSpender = _exBudgetModeSpender
-        ?cekCosts = costs
+runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = runST $ do
+    exBudgetMode   <- getExBudgetInfo
+    let exBudgetModeSpender       = _exBudgetModeSpender exBudgetMode
+        exBudgetModeGetFinal      = _exBudgetModeGetFinal exBudgetMode
+        exBudgetModeGetCumulative = _exBudgetModeGetCumulative exBudgetMode
+
+    cekEmitterInfo <- getEmitterMode exBudgetModeGetCumulative
+    let cekEmitterInfoEmit     = _cekEmitterInfoEmit cekEmitterInfo
+        cekEmitterInfoGetFinal = _cekEmitterInfoGetFinal cekEmitterInfo
+
+    let ?cekEmitter            = cekEmitterInfoEmit
+        ?cekBudgetSpender      = exBudgetModeSpender
     errOrRes <- tryError a
-    st <- _exBudgetModeGetFinal
-    logs <- _cekEmitterInfoGetFinal
+    st <- exBudgetModeGetFinal
+    logs <- cekEmitterInfoGetFinal
     pure (errOrRes, st, logs)
 
 -- | Look up a variable name in the environment.
@@ -359,7 +351,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- s ; ρ ▻ builtin bn  ↦  s ◅ builtin bn arity arity [] [] ρ
     computeCek !unbudgetedSteps !ctx !_ (Builtin bn) = do
         !unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
-        let meaning = unBuiltinsRuntime ?cekRuntime bn
+        let meaning = unBuiltinsRuntime defaultRuntime bn
         -- 'Builtin' is fully discharged.
         returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin bn) meaning)
     -- s ; ρ ▻ error A  ↦  <> A
@@ -469,7 +461,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     {-# INLINE spend #-}
     spend !i !w = unless (i == 7) $
       let kind = toEnumStepKind i in spendBudgetCek (BStep kind)
-                                                    (stimesExBudget w (cekStepCost ?cekCosts kind))
+                                                    (stimesExBudget w (cekStepCost defaultCekMachineCosts kind))
 
     -- | Accumulate a step, and maybe spend the budget that has accumulated for a number of machine steps, but only if we've exceeded our slippage.
     stepAndMaybeSpend :: StepKind -> WordArray -> CekM s WordArray
@@ -489,15 +481,29 @@ enterComputeCek = computeCek (toWordArray 0) where
 -- See Note [Compilation peculiarities].
 -- | Evaluate a term using the CEK machine and keep track of costing, logging is optional.
 runCekDeBruijn
-    :: MachineParameters
-    -> ExBudgetMode cost
+    :: ExBudgetMode cost
     -> EmitterMode
     -> Term
     -> (Either ErrorWithCause Term, cost, [Text])
-runCekDeBruijn params mode emitMode term =
-    runCekM params mode emitMode $ do
-        spendBudgetCek BStartup (cekStartupCost ?cekCosts)
+runCekDeBruijn mode emitMode term =
+    runCekM mode emitMode $ do
+        spendBudgetCek BStartup (cekStartupCost defaultCekMachineCosts)
         enterComputeCek NoFrame Env.empty term
 
 throwingWithCause :: EvaluationError -> Maybe Term -> CekM s x
 throwingWithCause e cause = throwError $ ErrorWithCause e cause
+
+defaultRuntime :: BuiltinsRuntime DefaultFun CekValue
+defaultRuntime = BuiltinsRuntime go
+  where
+    -- TODO: the budget here is liable to change once the tests start failing!
+    -- Also, I have no clue if this is actually right or if we need to use the
+    -- other constructors from CekValue as well here??
+    go AddInteger =
+      BuiltinExpectArgument $ \ c -> case c of
+        VCon (ConstInteger i) ->
+          BuiltinExpectArgument $ \ c' -> case c' of
+            VCon (ConstInteger j) ->
+              BuiltinResult (ExBudget 0 0) (MakeKnownSuccess (VCon $ ConstInteger $ i + j))
+            _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)
+        _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)

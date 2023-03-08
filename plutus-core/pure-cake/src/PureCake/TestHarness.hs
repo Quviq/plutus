@@ -17,11 +17,9 @@ import PlutusCore.TypeCheck qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
-import PureCake.PlutusCore.Evaluation.Machine.MachineParameters qualified as Cake
 import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts qualified as Cake
 
 import PureCake.ToPureCake
 
@@ -60,8 +58,7 @@ runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
            , Cake.RestrictingSt
            , [Text] )
 runCake =
-  Cake.runCekDeBruijn defaultCekParameters
-                      (Cake.restricting $ exRestrictingBudgetToCake testBudget)
+  Cake.runCekDeBruijn (Cake.restricting $ exRestrictingBudgetToCake testBudget)
                       noEmitter
   . termToCake
 
@@ -82,6 +79,3 @@ prop_run_PLC_Cake = withMaxSuccess 10000 $
 -- TODO: no clue about these numbers
 testBudget :: PLC.ExRestrictingBudget
 testBudget = PLC.ExRestrictingBudget $ PLC.ExBudget (PLC.ExCPU 100000) (PLC.ExMemory 100000)
-
-defaultCekParameters :: Cake.MachineParameters
-defaultCekParameters = Cake.mkMachineParameters Cake.defaultCekMachineCosts
