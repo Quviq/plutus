@@ -1,8 +1,9 @@
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE PolyKinds      #-}
-{-# LANGUAGE EmptyCase      #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE KindSignatures  #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE PolyKinds       #-}
+{-# LANGUAGE EmptyCase       #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module PureCake.ToPureCake where
 
 import Data.Coerce
@@ -34,9 +35,9 @@ cekExceptionToCake (PLC.ErrorWithCause e mc) =
 evaluationErrorToCake :: PLC.EvaluationError PLC.CekUserError (PLC.MachineError PLC.DefaultFun)
                       -> Cake.EvaluationError
 evaluationErrorToCake (PLC.InternalEvaluationError i) =
-  Cake.InternalEvaluationError (machineErrorToCake i)
+  Cake.InternalEvaluationError $ machineErrorToCake i
 evaluationErrorToCake (PLC.UserEvaluationError e) =
-  Cake.UserEvaluationError (userErrorToCake e)
+  Cake.UserEvaluationError $ userErrorToCake e
 
 userErrorToCake :: PLC.CekUserError -> Cake.CekUserError
 userErrorToCake (PLC.CekOutOfExError e) =
@@ -50,14 +51,13 @@ machineErrorToCake = \case
   PLC.NonWrapUnwrappedMachineError              -> Cake.NonWrapUnwrappedMachineError
   PLC.NonFunctionalApplicationMachineError      -> Cake.NonFunctionalApplicationMachineError
   PLC.OpenTermEvaluatedMachineError             -> Cake.OpenTermEvaluatedMachineError
-  PLC.UnliftingMachineError e                   -> Cake.UnliftingMachineError
-                                                          (unliftingErrorToCake e)
+  PLC.UnliftingMachineError e                   -> Cake.UnliftingMachineError $ unliftingErrorToCake e
   PLC.BuiltinTermArgumentExpectedMachineError   -> Cake.BuiltinTermArgumentExpectedMachineError
   PLC.UnexpectedBuiltinTermArgumentMachineError -> Cake.UnexpectedBuiltinTermArgumentMachineError
-  PLC.UnknownBuiltin fun                        -> Cake.UnknownBuiltin (funToCake fun)
+  PLC.UnknownBuiltin fun                        -> Cake.UnknownBuiltin $ funToCake fun
 
 unliftingErrorToCake :: PLC.UnliftingError -> Cake.UnliftingError
-unliftingErrorToCake (PLC.UnliftingErrorE txt) = Cake.UnliftingErrorE (unpack txt)
+unliftingErrorToCake (PLC.UnliftingErrorE txt) = Cake.UnliftingErrorE $ unpack txt
 
 exRestrictingBudgetToCake :: PLC.ExRestrictingBudget -> Cake.ExRestrictingBudget
 exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
@@ -68,13 +68,13 @@ exBudgetToCake (PLC.ExBudget cpu mem) = Cake.ExBudget (coerce cpu) (coerce mem)
 termToCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
            -> Cake.Term
 termToCake = \ case
-  PLC.Var _ name      -> Cake.Var (nameToCake name)
+  PLC.Var _ name      -> Cake.Var $ nameToCake name
   PLC.LamAbs _ name t -> Cake.LamAbs (nameToCake name) (termToCake t)
   PLC.Apply _ s t     -> Cake.Apply (termToCake s) (termToCake t)
-  PLC.Force _ t       -> Cake.Force (termToCake t)
-  PLC.Delay _ t       -> Cake.Delay (termToCake t)
-  PLC.Constant _ c    -> Cake.Constant (constToCake c)
-  PLC.Builtin _ fun   -> Cake.Builtin (funToCake fun)
+  PLC.Force _ t       -> Cake.Force $ termToCake t
+  PLC.Delay _ t       -> Cake.Delay $ termToCake t
+  PLC.Constant _ c    -> Cake.Constant $ constToCake c
+  PLC.Builtin _ fun   -> Cake.Builtin $ funToCake fun
   PLC.Error _         -> Cake.Error
 
 cakeToFun :: Cake.DefaultFun -> PLC.DefaultFun
@@ -91,7 +91,7 @@ constToCake (PLC.Some val) = valToCake val
 valToCake :: PLC.ValueOf PLC.DefaultUni a -> Cake.Const
 valToCake (PLC.ValueOf uni a) = case uni of
   PLC.DefaultUniInteger                         -> Cake.ConstInteger a
-  PLC.DefaultUniString                          -> Cake.ConstString (unpack a)
+  PLC.DefaultUniString                          -> Cake.ConstString $ unpack a
   PLC.DefaultUniBool                            -> Cake.ConstBool a
   PLC.DefaultUniUnit                            -> Cake.ConstUnit
   PLC.DefaultUniByteString                      -> Cake.ConstByteString a
@@ -110,5 +110,6 @@ instance Eq Cake.NamedDeBruijn where
     -- ignoring actual names and only relying solely on debruijn indices
     Cake.NamedDeBruijn _ ix1 == Cake.NamedDeBruijn _ ix2 = ix1 == ix2
 
-deriving instance Eq Cake.Term
-deriving instance Eq Cake.ErrorWithCause
+deriving stock instance Eq Cake.Term
+deriving stock instance Eq Cake.ErrorWithCause
+deriving stock instance Eq Cake.Index
