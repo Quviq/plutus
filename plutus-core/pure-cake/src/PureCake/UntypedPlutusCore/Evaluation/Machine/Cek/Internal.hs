@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns             #-}
 {-# LANGUAGE ConstraintKinds          #-}
-{-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE ImplicitParams           #-}
 {-# LANGUAGE NamedFieldPuns           #-}
 {-# LANGUAGE RankNTypes               #-}
@@ -14,7 +13,7 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , ExBudgetMode(..)
     , CekEmitterInfo(..)
     , EmitterMode(..)
-    , CekM (..)
+    , CekM
     , MachineParameters(..)
     , runCekDeBruijn
     , throwingWithCause
@@ -58,7 +57,27 @@ data StepKind
     | BDelay
     | BForce
     | BBuiltin -- Cost of evaluating a Builtin AST node, not the function itself
-    deriving stock (Eq, Ord, Enum)
+
+toEnumStepKind :: Int -> StepKind
+toEnumStepKind i = case i of
+  0 -> BConst
+  1 -> BVar
+  2 -> BLamAbs
+  3 -> BApply
+  4 -> BDelay
+  5 -> BForce
+  6 -> BBuiltin
+  _ -> error $ "toEnumStepKind " ++ show i
+
+fromEnumStepKind :: StepKind -> Integer
+fromEnumStepKind sk = case sk of
+  BConst   -> 0
+  BVar     -> 1
+  BLamAbs  -> 2
+  BApply   -> 3
+  BDelay   -> 4
+  BForce   -> 5
+  BBuiltin -> 6
 
 cekStepCost :: CekMachineCosts -> StepKind -> ExBudget
 cekStepCost costs kind = case kind of
@@ -74,7 +93,6 @@ data ExBudgetCategory
     = BStep StepKind
     | BBuiltinApp DefaultFun  -- Cost of evaluating a fully applied builtin function
     | BStartup
-    deriving stock (Eq, Ord)
 
 -- 'Values' for the modified CEK machine.
 data CekValue =
@@ -161,9 +179,7 @@ type GivenCekCosts = (?cekCosts :: CekMachineCosts)
 type GivenCekReqs s = (GivenCekRuntime, GivenCekEmitter s, GivenCekSpender s, GivenCekCosts)
 
 -- | The monad the CEK machine runs in.
-newtype CekM s a = CekM
-    { unCekM :: ST s a
-    } deriving newtype (Functor, Applicative, Monad)
+type CekM s a = ST s a
 
 throwingDischarged
     :: EvaluationError
@@ -171,21 +187,19 @@ throwingDischarged
     -> CekM s x
 throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
 
--- instance MonadError ErrorWithCause (CekM s) where
-    -- See Note [Throwing exceptions in ST].
 throwError :: ErrorWithCause -> CekM s a
-throwError = CekM . throwM
+throwError =  throwM
 
 -- See Note [Catching exceptions in ST].
 catchError :: CekM s a -> (ErrorWithCause -> CekM s a) -> CekM s a
-catchError a h = CekM . unsafeIOToST $ aIO `catch` hIO where
+catchError a h = unsafeIOToST $ aIO `catch` hIO where
     aIO = unsafeRunCekM a
     hIO = unsafeRunCekM . h
 
     -- | Unsafely run a 'CekM' computation in the 'IO' monad by converting the
     -- underlying 'ST' to it.
     unsafeRunCekM :: CekM s a -> IO a
-    unsafeRunCekM = unsafeSTToIO . unCekM
+    unsafeRunCekM = unsafeSTToIO
 
 spendBudgetCek :: GivenCekSpender s => ExBudgetCategory -> ExBudget -> CekM s ()
 spendBudgetCek = let (CekBudgetSpender spend) = ?cekBudgetSpender in spend
@@ -260,7 +274,7 @@ runCekM (MachineParameters costs runtime) (ExBudgetMode getExBudgetInfo) (Emitte
         ?cekEmitter = _cekEmitterInfoEmit
         ?cekBudgetSpender = _exBudgetModeSpender
         ?cekCosts = costs
-    errOrRes <- unCekM $ tryError a
+    errOrRes <- tryError a
     st <- _exBudgetModeGetFinal
     logs <- _cekEmitterInfoGetFinal
     pure (errOrRes, st, logs)
@@ -454,8 +468,8 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- See Note [Structure of the step counter]
     {-# INLINE spend #-}
     spend !i !w = unless (i == 7) $
-      let kind = toEnum i in spendBudgetCek (BStep kind)
-                                            (stimesExBudget w (cekStepCost ?cekCosts kind))
+      let kind = toEnumStepKind i in spendBudgetCek (BStep kind)
+                                                    (stimesExBudget w (cekStepCost ?cekCosts kind))
 
     -- | Accumulate a step, and maybe spend the budget that has accumulated for a number of machine steps, but only if we've exceeded our slippage.
     stepAndMaybeSpend :: StepKind -> WordArray -> CekM s WordArray
@@ -463,7 +477,7 @@ enterComputeCek = computeCek (toWordArray 0) where
         -- See Note [Structure of the step counter]
         -- This generates let-expressions in GHC Core, however all of them bind unboxed things and
         -- so they don't survive further compilation, see https://stackoverflow.com/a/14090277
-        let !ix = fromIntegral $ fromEnum kind
+        let !ix = fromIntegral $ fromEnumStepKind kind
             !unbudgetedSteps' = overIndex 7 (+1) $ overIndex ix (+1) unbudgetedSteps
             !unbudgetedStepsTotal = readArray unbudgetedSteps' 7
         -- There's no risk of overflow here, since we only ever increment the total
