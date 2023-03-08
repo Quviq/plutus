@@ -1,14 +1,11 @@
 {-# LANGUAGE EmptyDataDeriving  #-}
 
 module PureCake.UntypedPlutusCore.Core
-    ( Version (..)
-    , Binder (..)
+    (  Binder (..)
     , Term (..)
     , Const(..)
     , DefaultFun (..)
     ) where
-
-import PlutusPrelude
 
 import Data.ByteString
 
@@ -25,10 +22,6 @@ data Term
     | Error
     deriving stock Show
 
-data Version
-    = Version Natural Natural Natural
-    deriving stock (Eq, Show)
-
 newtype Binder = Binder { unBinder :: NamedDeBruijn }
 
 data Const =
@@ -39,7 +32,7 @@ data Const =
   | ConstUnit
   | ConstPair Const Const
   | ConstList [Const]
-  deriving stock (Eq, Show)
+  deriving stock Show
 
 data DefaultFun = AddInteger
   deriving stock (Ord, Eq, Show)

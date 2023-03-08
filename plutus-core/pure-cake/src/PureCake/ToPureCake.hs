@@ -110,6 +110,15 @@ instance Eq Cake.NamedDeBruijn where
     -- ignoring actual names and only relying solely on debruijn indices
     Cake.NamedDeBruijn _ ix1 == Cake.NamedDeBruijn _ ix2 = ix1 == ix2
 
+deriving stock instance Eq Cake.CekUserError
+deriving stock instance Eq Cake.UnliftingError
+deriving stock instance Eq Cake.MachineError
+deriving stock instance Eq Cake.EvaluationError
 deriving stock instance Eq Cake.Term
 deriving stock instance Eq Cake.ErrorWithCause
 deriving stock instance Eq Cake.Index
+deriving stock instance Eq Cake.ExRestrictingBudget
+deriving stock instance Eq Cake.RestrictingSt
+deriving stock instance Eq Cake.ExBudget
+deriving stock instance Eq Cake.Const
+deriving stock instance Show Cake.RestrictingSt

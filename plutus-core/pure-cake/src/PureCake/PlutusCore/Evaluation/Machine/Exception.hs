@@ -17,12 +17,11 @@ import PureCake.UntypedPlutusCore.Core
 data EvaluationResult a
     = EvaluationSuccess !a
     | EvaluationFailure
-    deriving stock (Show, Eq, Functor)
 
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
     = UnliftingErrorE String
-    deriving stock (Show, Eq)
+    deriving stock Show
 
 -- | Errors which can occur during a run of an abstract machine.
 data MachineError
@@ -41,7 +40,7 @@ data MachineError
     | UnexpectedBuiltinTermArgumentMachineError
       -- ^ A builtin received a term argument when something else was expected
     | UnknownBuiltin DefaultFun
-    deriving stock (Show, Eq)
+    deriving stock Show
 
 -- | The type of errors (all of them) which can occur during evaluation
 -- (some are used-caused, some are internal).
@@ -50,13 +49,13 @@ data EvaluationError
       -- ^ Indicates bugs.
     | UserEvaluationError CekUserError
       -- ^ Indicates user errors.
-    deriving stock (Show, Eq)
+    deriving stock Show
 
 data CekUserError
     -- @plutus-errors@ prevents this from being strict. Not that it matters anyway.
     = CekOutOfExError ExRestrictingBudget -- ^ The final overspent (i.e. negative) budget.
     | CekEvaluationFailure -- ^ Error has been called or a builtin application has failed
-    deriving stock (Show, Eq)
+    deriving stock Show
 
 -- | An error and (optionally) what caused it.
 data ErrorWithCause = ErrorWithCause

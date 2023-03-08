@@ -21,7 +21,7 @@ type ExMemory = CostingInteger
 type ExCPU = CostingInteger
 
 data ExBudget = ExBudget { exBudgetCPU :: ExCPU, exBudgetMemory :: ExMemory }
-    deriving stock (Eq, Show)
+    deriving stock Show
 
 minusExBudget :: ExBudget -> ExBudget -> ExBudget
 minusExBudget (ExBudget c1 m1) (ExBudget c2 m2) =
@@ -33,4 +33,4 @@ stimesExBudget r (ExBudget cpu mem) = ExBudget (fromIntegral r * cpu)
 
 newtype ExRestrictingBudget = ExRestrictingBudget
     { unExRestrictingBudget :: ExBudget
-    } deriving stock (Show, Eq)
+    } deriving stock Show

@@ -59,7 +59,7 @@ data StepKind
     | BDelay
     | BForce
     | BBuiltin -- Cost of evaluating a Builtin AST node, not the function itself
-    deriving stock (Show, Eq, Ord, Enum, Bounded)
+    deriving stock (Eq, Ord, Enum)
 
 cekStepCost :: CekMachineCosts -> StepKind -> ExBudget
 cekStepCost costs kind = case kind of
@@ -75,11 +75,7 @@ data ExBudgetCategory
     = BStep StepKind
     | BBuiltinApp DefaultFun  -- Cost of evaluating a fully applied builtin function
     | BStartup
-    deriving stock (Show, Eq, Ord)
-
--- See Note [Show instance for BuiltinRuntime].
-instance Show (BuiltinRuntime CekValue) where
-    show _ = "<builtin_runtime>"
+    deriving stock (Eq, Ord)
 
 -- 'Values' for the modified CEK machine.
 data CekValue =
@@ -108,7 +104,6 @@ data CekValue =
       !(BuiltinRuntime CekValue)
       -- ^ The partial application and its costing function.
       -- Check the docs of 'BuiltinRuntime' for details.
-    deriving stock (Show)
 
 type CekValEnv = Env.RAList CekValue
 
@@ -248,7 +243,6 @@ data Context
     | FrameApplyArg !CekValEnv !Term !Context
     | FrameForce !Context
     | NoFrame
-    deriving stock (Show)
 
 tryError :: CekM s a -> CekM s (Either ErrorWithCause a)
 tryError a = (Right <$> a) `catchError` (pure . Left)

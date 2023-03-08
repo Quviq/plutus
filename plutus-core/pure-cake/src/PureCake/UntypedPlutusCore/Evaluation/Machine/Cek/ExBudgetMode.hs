@@ -18,7 +18,6 @@ import Data.Primitive.PrimArray
 import Data.SatInt
 
 newtype RestrictingSt = RestrictingSt ExRestrictingBudget
-    deriving stock (Eq, Show)
 
 -- | For execution, to avoid overruns.
 restricting :: ExRestrictingBudget -> ExBudgetMode RestrictingSt

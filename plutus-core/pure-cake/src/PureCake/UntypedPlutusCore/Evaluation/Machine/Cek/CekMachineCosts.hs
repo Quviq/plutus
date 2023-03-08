@@ -6,11 +6,9 @@ where
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 
--- | Costs for evaluating AST nodes.  Times should be specified in picoseconds, memory sizes in bytes.
-
 data CekMachineCosts =
     CekMachineCosts {
-      cekStartupCost :: ExBudget  -- General overhead
+      cekStartupCost :: ExBudget
     , cekVarCost     :: ExBudget
     , cekConstCost   :: ExBudget
     , cekLamCost     :: ExBudget
@@ -18,13 +16,8 @@ data CekMachineCosts =
     , cekForceCost   :: ExBudget
     , cekApplyCost   :: ExBudget
     , cekBuiltinCost :: ExBudget
-    -- ^ Just the cost of evaluating a Builtin node, not the builtin itself.
-    -- There's no entry for Error since we'll be exiting anyway; also, what would
-    -- happen if calling 'Error' caused the budget to be exceeded?
     }
-    deriving stock (Eq, Show)
 
--- | Default costs for CEK machine instructions.
 defaultCekMachineCosts :: CekMachineCosts
 defaultCekMachineCosts =
   CekMachineCosts { cekStartupCost = ExBudget 100 100
