@@ -17,6 +17,7 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , CekEmitterInfo(..)
     , EmitterMode(..)
     , CekM (..)
+    , MachineParameters(..)
     , runCekDeBruijn
     )
 where
@@ -34,7 +35,6 @@ import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExB
 import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause,
                                                          MachineError (..), CekUserError (..),
                                                          throwingWithCause, EvaluationResult (..))
-import PureCake.PlutusCore.Evaluation.Machine.MachineParameters (MachineParameters (..))
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts (CekMachineCosts (..))
 
 import Control.Monad (unless)
@@ -45,6 +45,12 @@ import Control.Monad.ST.Unsafe (unsafeIOToST, unsafeSTToIO)
 import Data.Text (Text)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
+
+data MachineParameters =
+    MachineParameters {
+      machineCosts    :: CekMachineCosts
+    , builtinsRuntime :: BuiltinsRuntime DefaultFun CekValue
+    }
 
 data StepKind
     = BConst
@@ -249,7 +255,7 @@ tryError a = (Right <$> a) `catchError` (pure . Left)
 
 runCekM
     :: forall a cost.
-       MachineParameters CekMachineCosts CekValue
+       MachineParameters
     -> ExBudgetMode cost
     -> EmitterMode
     -> (forall s. GivenCekReqs s => CekM s a)
@@ -476,7 +482,7 @@ enterComputeCek = computeCek (toWordArray 0) where
 -- See Note [Compilation peculiarities].
 -- | Evaluate a term using the CEK machine and keep track of costing, logging is optional.
 runCekDeBruijn
-    :: MachineParameters CekMachineCosts CekValue
+    :: MachineParameters
     -> ExBudgetMode cost
     -> EmitterMode
     -> Term

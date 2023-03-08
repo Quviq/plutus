@@ -83,5 +83,5 @@ prop_run_PLC_Cake = withMaxSuccess 10000 $
 testBudget :: PLC.ExRestrictingBudget
 testBudget = PLC.ExRestrictingBudget $ PLC.ExBudget (PLC.ExCPU 100000) (PLC.ExMemory 100000)
 
-defaultCekParameters :: Cake.MachineParameters Cake.CekMachineCosts Cake.CekValue
+defaultCekParameters :: Cake.MachineParameters
 defaultCekParameters = Cake.mkMachineParameters Cake.defaultCekMachineCosts
