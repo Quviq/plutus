@@ -1,7 +1,5 @@
 {-# LANGUAGE BangPatterns             #-}
 {-# LANGUAGE ConstraintKinds          #-}
-{-# LANGUAGE ImplicitParams           #-}
-{-# LANGUAGE NamedFieldPuns           #-}
 {-# LANGUAGE RankNTypes               #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
@@ -23,7 +21,6 @@ import PlutusPrelude (coerce)
 
 import PureCake.UntypedPlutusCore.Core
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
-import Data.Functor (($>))
 import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime (..), MakeKnownM(..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExBudget)
@@ -153,15 +150,6 @@ newtype EmitterMode = EmitterMode
     { unEmitterMode :: IO ExBudget -> IO CekEmitterInfo
     }
 
--- | Implicit parameter for the log emitter reference.
-type GivenCekEmitter = (?cekEmitter :: CekEmitter)
--- | Implicit parameter for budget spender.
-type GivenCekSpender = (?cekBudgetSpender :: CekBudgetSpender)
-
--- | Constraint requiring all of the machine's implicit parameters.
-type GivenCekReqs = (GivenCekEmitter, GivenCekSpender)
-
--- TODO: this needs to move to IO!
 type CekM = IO
 
 throwingDischarged
@@ -173,8 +161,8 @@ throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
 throwError :: ErrorWithCause -> CekM a
 throwError =  throwM
 
-spendBudgetCek :: GivenCekSpender => ExBudgetCategory -> ExBudget -> CekM ()
-spendBudgetCek = let (CekBudgetSpender spend) = ?cekBudgetSpender in spend
+spendBudgetCek :: CekBudgetSpender -> ExBudgetCategory -> ExBudget -> CekM ()
+spendBudgetCek cekBudgetSpender = let (CekBudgetSpender spend) = cekBudgetSpender in spend
 
 -- see Note [Scoping].
 -- | Instantiate all the free variables of a term by looking them up in an environment.
@@ -241,7 +229,7 @@ runCekM
     :: forall a cost.
        ExBudgetMode cost
     -> EmitterMode
-    -> (GivenCekReqs => CekM a)
+    -> (CekEmitter -> CekBudgetSpender -> CekM a)
     -> IO (Either ErrorWithCause a, cost, [String])
 runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = do
     exBudgetMode   <- getExBudgetInfo
@@ -252,10 +240,9 @@ runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = do
     cekEmitterInfo <- getEmitterMode exBudgetModeGetCumulative
     let cekEmitterInfoEmit     = _cekEmitterInfoEmit cekEmitterInfo
         cekEmitterInfoGetFinal = _cekEmitterInfoGetFinal cekEmitterInfo
-
-    let ?cekEmitter            = cekEmitterInfoEmit
-        ?cekBudgetSpender      = exBudgetModeSpender
-    errOrRes <- tryError a
+        cekEmitter             = cekEmitterInfoEmit
+        cekBudgetSpender       = exBudgetModeSpender
+    errOrRes <- tryError $ a cekEmitter cekBudgetSpender
     st <- exBudgetModeGetFinal
     logs <- cekEmitterInfoGetFinal
     pure (errOrRes, st, logs)
@@ -274,31 +261,35 @@ lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
 -- 'makeKnown' or a partial builtin application depending on whether the built-in function is
 -- fully saturated or not.
 evalBuiltinApp
-    :: GivenCekReqs
-    => DefaultFun
+    :: CekEmitter
+    -> CekBudgetSpender
+    -> DefaultFun
     -> Term
     -> BuiltinRuntime CekValue
     -> CekM CekValue
-evalBuiltinApp fun term runtime = case runtime of
+evalBuiltinApp cekEmitter cekSpender fun term runtime = case runtime of
     BuiltinResult cost getX -> do
-        spendBudgetCek (BBuiltinApp fun) cost
+        spendBudgetCek cekSpender (BBuiltinApp fun) cost
         case getX of
             MakeKnownFailure logs err       -> do
-                ?cekEmitter logs
+                cekEmitter logs
                 throwingWithCause (InternalEvaluationError err) (Just term)
             MakeKnownSuccess x              -> pure x
-            MakeKnownSuccessWithLogs logs x -> ?cekEmitter logs $> x
+            MakeKnownSuccessWithLogs logs x -> do
+              cekEmitter logs
+              pure x
     _ -> pure $ VBuiltin fun term runtime
 
 -- See Note [Compilation peculiarities].
 -- | The entering point to the CEK machine's engine.
 enterComputeCek
-    :: GivenCekReqs
-    => Context
+    :: CekEmitter
+    -> CekBudgetSpender
+    -> Context
     -> CekValEnv
     -> Term
     -> CekM Term
-enterComputeCek = computeCek (toWordArray 0) where
+enterComputeCek cekEmitter cekSpender = computeCek (toWordArray 0) where
     -- | The computing part of the CEK machine.
     -- Either
     -- 1. adds a frame to the context and calls 'computeCek' ('Force', 'Apply')
@@ -396,7 +387,7 @@ enterComputeCek = computeCek (toWordArray 0) where
                 -- We allow a type argument to appear last in the type of a built-in function,
                 -- otherwise we could just assemble a 'VBuiltin' without trying to evaluate the
                 -- application.
-                res <- evalBuiltinApp fun term' runtime'
+                res <- evalBuiltinApp cekEmitter cekSpender fun term' runtime'
                 returnCek unbudgetedSteps ctx res
             _ ->
                 throwingWithCause (InternalEvaluationError BuiltinTermArgumentExpectedMachineError) (Just term')
@@ -429,7 +420,7 @@ enterComputeCek = computeCek (toWordArray 0) where
             -- It's only possible to apply a builtin application if the builtin expects a term
             -- argument next.
             BuiltinExpectArgument f -> do
-                res <- evalBuiltinApp fun term' $ f arg
+                res <- evalBuiltinApp cekEmitter cekSpender fun term' $ f arg
                 returnCek unbudgetedSteps ctx res
             _ ->
                 throwingWithCause (InternalEvaluationError UnexpectedBuiltinTermArgumentMachineError)
@@ -447,7 +438,7 @@ enterComputeCek = computeCek (toWordArray 0) where
     -- See Note [Structure of the step counter]
     {-# INLINE spend #-}
     spend !i !w = unless (i == 7) $
-      let kind = toEnumStepKind i in spendBudgetCek (BStep kind)
+      let kind = toEnumStepKind i in spendBudgetCek cekSpender (BStep kind)
                                                     (stimesExBudget w (cekStepCost defaultCekMachineCosts kind))
 
     -- | Accumulate a step, and maybe spend the budget that has accumulated for a number of machine steps, but only if we've exceeded our slippage.
@@ -473,9 +464,9 @@ runCekDeBruijn
     -> Term
     -> IO (Either ErrorWithCause Term, cost, [String])
 runCekDeBruijn mode emitMode term =
-    runCekM mode emitMode $ do
-        spendBudgetCek BStartup (cekStartupCost defaultCekMachineCosts)
-        enterComputeCek NoFrame [] term
+    runCekM mode emitMode $ \ cekEmitter cekSpender -> do
+        spendBudgetCek cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
+        enterComputeCek cekEmitter cekSpender NoFrame [] term
 
 throwingWithCause :: EvaluationError -> Maybe Term -> CekM x
 throwingWithCause e cause = throwError $ ErrorWithCause e cause
