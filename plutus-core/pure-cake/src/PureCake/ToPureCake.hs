@@ -9,12 +9,12 @@ module PureCake.ToPureCake where
 import Data.Coerce
 import Data.Text
 
-import PlutusCore.Default qualified as PLC
-import PlutusCore.Evaluation.Machine.Exception qualified as PLC
-import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
-import PlutusCore.DeBruijn qualified as PLC
-import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
-import UntypedPlutusCore.Core qualified as PLC
+import PlutusCore.Default                       qualified as PLC
+import PlutusCore.Evaluation.Machine.Exception  qualified as PLC
+import PlutusCore.Evaluation.Machine.ExMemory   qualified as PLC
+import PlutusCore.DeBruijn                      qualified as PLC
+import PlutusCore.Evaluation.Machine.ExBudget   qualified as PLC
+import UntypedPlutusCore.Core                   qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
@@ -105,6 +105,7 @@ instance Eq Cake.NamedDeBruijn where
     -- ignoring actual names and only relying solely on debruijn indices
     Cake.NamedDeBruijn _ ix1 == Cake.NamedDeBruijn _ ix2 = ix1 == ix2
 
+deriving stock instance Eq Cake.DefaultFun
 deriving stock instance Eq Cake.CekUserError
 deriving stock instance Eq Cake.UnliftingError
 deriving stock instance Eq Cake.MachineError

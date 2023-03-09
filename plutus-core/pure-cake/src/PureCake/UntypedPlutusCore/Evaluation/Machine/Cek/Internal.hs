@@ -640,4 +640,4 @@ data Const =
   deriving stock Show
 
 data DefaultFun = AddInteger
-  deriving stock (Ord, Eq, Show)
+  deriving stock Show
