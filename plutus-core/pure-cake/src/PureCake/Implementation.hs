@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveAnyClass   #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-
 module PureCake.Implementation where
 
-import Data.ByteString hiding (length)
 import Data.Primitive.PrimArray
-import Control.Monad.Catch (catch, throwM, Exception)
+
+import PureCake.HaskellPrelude
+
+-- TODO: this is a bit of an approximation!
+throwError :: ErrorWithCause -> CekM a
+throwError _ = raise
 
 type Word8 = Int
 type WordArray = [Int]
@@ -15,10 +17,10 @@ initWordArray = [0,0,0,0,0,0,0,0]
 
 overIndex :: Int -> (Word8 -> Word8) -> WordArray -> WordArray
 overIndex 0 f ws = case ws of
-  w:ws -> f w : ws
+  w:ws' -> f w : ws'
   []   -> error "out of bounds"
 overIndex i f ws = case ws of
-  w:ws -> w : overIndex (i - 1) f ws
+  w:ws' -> w : overIndex (i - 1) f ws'
   []   -> error "out of bounds"
 
 readArray :: WordArray -> Int -> Word8
@@ -27,11 +29,11 @@ readArray = (!!)
 iforWordArray :: WordArray -> (Int -> Word8 -> CekM ()) -> CekM ()
 iforWordArray ws f = go 0 ws
   where
-    go i ws = case ws of
+    go i ws' = case ws' of
       []     -> pure ()
-      w : ws -> do
+      w : ws'' -> do
         f i w
-        go (i+1) ws
+        go (i+1) ws''
 
 -- | Counts size in machine words.
 type ExMemory = Int
@@ -41,7 +43,6 @@ type ExMemory = Int
 type ExCPU = Int
 
 data ExBudget = ExBudget { exBudgetCPU :: ExCPU, exBudgetMemory :: ExMemory }
-    deriving stock Show
 
 minusExBudget :: ExBudget -> ExBudget -> ExBudget
 minusExBudget (ExBudget c1 m1) (ExBudget c2 m2) =
@@ -53,7 +54,7 @@ stimesExBudget r (ExBudget cpu mem) = ExBudget (fromIntegral r * cpu)
 
 newtype ExRestrictingBudget = ExRestrictingBudget
     { unExRestrictingBudget :: ExBudget
-    } deriving stock Show
+    }
 
 data CekMachineCosts =
     CekMachineCosts {
@@ -217,8 +218,6 @@ throwingDischarged
     -> CekM x
 throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
 
-throwError :: ErrorWithCause -> CekM a
-throwError =  throwM
 
 spendBudgetCek :: CekBudgetSpender -> ExBudgetCategory -> ExBudget -> CekM ()
 spendBudgetCek cekBudgetSpender = let (CekBudgetSpender spend) = cekBudgetSpender in spend
@@ -281,15 +280,13 @@ data Context
     | FrameForce Context
     | NoFrame
 
-tryError :: CekM a -> CekM (Either ErrorWithCause a)
-tryError a = (Right <$> a) `catch` (pure . Left)
 
 runCekM
     :: forall a.
        ExBudgetMode
     -> EmitterMode
     -> (CekEmitter -> CekBudgetSpender -> CekM a)
-    -> IO (Either ErrorWithCause a, ExRestrictingBudget, [String])
+    -> IO (Maybe a, ExRestrictingBudget, [String])
 runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = do
     exBudgetMode   <- getExBudgetInfo
     let exBudgetModeSpender       = _exBudgetModeSpender exBudgetMode
@@ -522,7 +519,7 @@ runCekDeBruijn
     :: ExRestrictingBudget
     -> EmitterMode
     -> Term
-    -> IO (Either ErrorWithCause Term, ExRestrictingBudget, [String])
+    -> IO (Maybe Term, ExRestrictingBudget, [String])
 runCekDeBruijn limit emitMode term =
     runCekM (restricting limit) emitMode $ \ cekEmitter cekSpender -> do
         spendBudgetCek cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
@@ -593,7 +590,6 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
 -- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
 newtype UnliftingError
     = UnliftingErrorE String
-    deriving stock Show
 
 -- | Errors which can occur during a run of an abstract machine.
 data MachineError
@@ -612,7 +608,6 @@ data MachineError
     | UnexpectedBuiltinTermArgumentMachineError
       -- ^ A builtin received a term argument when something else was expected
     | UnknownBuiltin DefaultFun
-    deriving stock Show
 
 -- | The type of errors (all of them) which can occur during evaluation
 -- (some are used-caused, some are internal).
@@ -621,24 +616,19 @@ data EvaluationError
       -- ^ Indicates bugs.
     | UserEvaluationError CekUserError
       -- ^ Indicates user errors.
-    deriving stock Show
 
 data CekUserError
     -- @plutus-errors@ prevents this from being strict. Not that it matters anyway.
     = CekOutOfExError ExRestrictingBudget -- ^ The final overspent (i.e. negative) budget.
     | CekEvaluationFailure -- ^ Error has been called or a builtin application has failed
-    deriving stock Show
 
 -- | An error and (optionally) what caused it.
 data ErrorWithCause = ErrorWithCause
     { _ewcError :: EvaluationError
     , _ewcCause :: Maybe Term
-    } deriving stock Show
-
-deriving anyclass instance Exception ErrorWithCause
+    }
 
 data NamedDeBruijn = NamedDeBruijn { ndbnString :: String, ndbnIndex :: Int }
-    deriving stock Show
 
 data Term
     = Var NamedDeBruijn
@@ -649,17 +639,13 @@ data Term
     | Constant Const
     | Builtin DefaultFun
     | Error
-    deriving stock Show
 
 data Const =
     ConstInteger Integer
   | ConstString String
   | ConstBool Bool
-  | ConstByteString ByteString
   | ConstUnit
   | ConstPair Const Const
   | ConstList [Const]
-  deriving stock Show
 
 data DefaultFun = AddInteger
-  deriving stock Show

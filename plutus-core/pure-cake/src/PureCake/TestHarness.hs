@@ -36,7 +36,7 @@ logEmitter :: Cake.EmitterMode
 logEmitter = error "TODO"
 
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-       -> ( Either Cake.ErrorWithCause Cake.Term
+       -> ( Maybe Cake.Term
           , Cake.ExRestrictingBudget
           , [String] )
 runPLC tm =
@@ -44,13 +44,13 @@ runPLC tm =
                                      (PLC.restricting testBudget)
                                      PLC.noEmitter
                                      tm
-  in ( either (Left . cekExceptionToCake) (Right . termToCake) e
+  in ( either (const Nothing) (Just . termToCake) e
      , restrictingStToCake c
      , unpack <$> l
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.ExRestrictingBudget, [String])
+        -> IO (Maybe Cake.Term, Cake.ExRestrictingBudget, [String])
 runCake =
   Cake.runCekDeBruijn (exRestrictingBudgetToCake testBudget)
                       noEmitter

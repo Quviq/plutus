@@ -231,7 +231,7 @@ instance KnownKind k => Arbitrary (MaybeSomeTypeOf k) where
            SingType ->
                [genDefaultUniApply | size > 10] ++
                [ pure $ JustSomeType DefaultUniInteger
-               , pure $ JustSomeType DefaultUniByteString
+               -- , pure $ JustSomeType DefaultUniByteString
                , pure $ JustSomeType DefaultUniString
                , pure $ JustSomeType DefaultUniUnit
                , pure $ JustSomeType DefaultUniBool

@@ -92,7 +92,9 @@ valToCake (PLC.ValueOf uni a) = case uni of
   PLC.DefaultUniString                          -> Cake.ConstString $ unpack a
   PLC.DefaultUniBool                            -> Cake.ConstBool a
   PLC.DefaultUniUnit                            -> Cake.ConstUnit
-  PLC.DefaultUniByteString                      -> Cake.ConstByteString a
+  -- TODO: we don't worry about bytestring vs. string for now
+  -- because it's a PITA in purecake
+  -- PLC.DefaultUniByteString                      -> Cake.ConstString $ unpack $ _ a
   PLC.DefaultUniApply
     PLC.DefaultUniProtoList
     u -> Cake.ConstList (valToCake . PLC.ValueOf u <$> a)
@@ -118,3 +120,15 @@ deriving stock instance Eq Cake.ErrorWithCause
 deriving stock instance Eq Cake.ExRestrictingBudget
 deriving stock instance Eq Cake.ExBudget
 deriving stock instance Eq Cake.Const
+
+deriving stock instance Show Cake.DefaultFun
+deriving stock instance Show Cake.CekUserError
+deriving stock instance Show Cake.UnliftingError
+deriving stock instance Show Cake.MachineError
+deriving stock instance Show Cake.EvaluationError
+deriving stock instance Show Cake.Term
+deriving stock instance Show Cake.ErrorWithCause
+deriving stock instance Show Cake.ExRestrictingBudget
+deriving stock instance Show Cake.ExBudget
+deriving stock instance Show Cake.Const
+deriving stock instance Show Cake.NamedDeBruijn
