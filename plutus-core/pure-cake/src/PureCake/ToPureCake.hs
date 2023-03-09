@@ -8,6 +8,7 @@ module PureCake.ToPureCake where
 
 import Data.Coerce
 import Data.Text
+import Data.SatInt
 
 import PlutusCore.Default                       qualified as PLC
 import PlutusCore.Evaluation.Machine.Exception  qualified as PLC
@@ -58,7 +59,9 @@ exRestrictingBudgetToCake :: PLC.ExRestrictingBudget -> Cake.ExRestrictingBudget
 exRestrictingBudgetToCake = coerce . exBudgetToCake . coerce
 
 exBudgetToCake :: PLC.ExBudget -> Cake.ExBudget
-exBudgetToCake (PLC.ExBudget cpu mem) = Cake.ExBudget (coerce cpu) (coerce mem)
+exBudgetToCake (PLC.ExBudget cpu mem) =
+  Cake.ExBudget (fromIntegral $ (coerce cpu :: SatInt))
+                (fromIntegral $ (coerce mem :: SatInt))
 
 termToCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
            -> Cake.Term
@@ -99,7 +102,7 @@ valToCake (PLC.ValueOf uni a) = case uni of
   u                                             -> error $ "we don't yet handle " ++ show u
 
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
-nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) ix
+nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) $ fromIntegral ix
 
 instance Eq Cake.NamedDeBruijn where
     -- ignoring actual names and only relying solely on debruijn indices

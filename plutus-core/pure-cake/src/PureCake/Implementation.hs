@@ -1,20 +1,44 @@
 {-# LANGUAGE DeriveAnyClass   #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module PureCake.Implementation where
 
 import Data.ByteString hiding (length)
-import Data.Word
 import Data.Primitive.PrimArray
 import Control.Monad.Catch (catch, throwM, Exception)
-import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
-import Data.SatInt
+
+type Word8 = Int
+type WordArray = [Int]
+
+initWordArray :: WordArray
+initWordArray = [0,0,0,0,0,0,0,0]
+
+overIndex :: Int -> (Word8 -> Word8) -> WordArray -> WordArray
+overIndex 0 f ws = case ws of
+  w:ws -> f w : ws
+  []   -> error "out of bounds"
+overIndex i f ws = case ws of
+  w:ws -> w : overIndex (i - 1) f ws
+  []   -> error "out of bounds"
+
+readArray :: WordArray -> Int -> Word8
+readArray = (!!)
+
+iforWordArray :: WordArray -> (Int -> Word8 -> CekM ()) -> CekM ()
+iforWordArray ws f = go 0 ws
+  where
+    go i ws = case ws of
+      []     -> pure ()
+      w : ws -> do
+        f i w
+        go (i+1) ws
 
 -- | Counts size in machine words.
-type ExMemory = SatInt
+type ExMemory = Int
 
--- | Counts CPU units in picoseconds: maximum value for SatInt is 2^63 ps, or
+-- | Counts CPU units in picoseconds: maximum value for Int is 2^63 ps, or
 -- appproximately 106 days.
-type ExCPU = SatInt
+type ExCPU = Int
 
 data ExBudget = ExBudget { exBudgetCPU :: ExCPU, exBudgetMemory :: ExMemory }
     deriving stock Show
@@ -167,11 +191,9 @@ newtype ExBudgetMode = ExBudgetMode
     { unExBudgetMode :: IO ExBudgetInfo
     }
 
-type Slippage = Word8
-
 -- See Note [Cost slippage]
 -- | The default number of slippage (in machine steps) to allow.
-defaultSlippage :: Slippage
+defaultSlippage :: Int
 defaultSlippage = 200
 
 type CekEmitter = [String] -> CekM ()
@@ -211,7 +233,7 @@ dischargeCekValEnv valEnv = go 0
  where
   -- The lamCnt is just a counter that measures how many lambda-abstractions
   -- we have descended in the `go` loop.
-  go :: Word64 -> Term -> Term
+  go :: Int -> Term -> Term
   go lamCnt = \t0 -> case t0 of
     LamAbs name body -> LamAbs name $ go (lamCnt+1) body
     var@(Var (NamedDeBruijn _ ndbnIx)) -> let ix = ndbnIx in
@@ -231,10 +253,10 @@ dischargeCekValEnv valEnv = go 0
     Force term       -> Force $ go lamCnt term
     t -> t
 
-indexOne :: [a] -> Word64 -> Maybe a
+indexOne :: [a] -> Int -> Maybe a
 indexOne xs i
-  | fromIntegral (i - 1) >= length xs = Nothing
-  | otherwise = Just $ xs !! fromIntegral (i - 1)
+  | (i - 1) >= length xs = Nothing
+  | otherwise = Just $ xs !! (i - 1)
 
 -- | Convert a 'CekValue' into a 'Term' by replacing all bound variables with the terms
 -- they're bound to (which themselves have to be obtain by recursively discharging values).
@@ -326,7 +348,7 @@ enterComputeCek
     -> CekValEnv
     -> Term
     -> CekM Term
-enterComputeCek cekEmitter cekSpender = computeCek (toWordArray 0) where
+enterComputeCek cekEmitter cekSpender = computeCek initWordArray where
     -- | The computing part of the CEK machine.
     -- Either
     -- 1. adds a frame to the context and calls 'computeCek' ('Force', 'Apply')
@@ -491,7 +513,7 @@ enterComputeCek cekEmitter cekSpender = computeCek (toWordArray 0) where
         -- There's no risk of overflow here, since we only ever increment the total
         -- steps by 1 and then check this condition.
         if unbudgetedStepsTotal >= defaultSlippage
-        then spendAccumulatedBudget unbudgetedSteps' >> pure (toWordArray 0)
+        then spendAccumulatedBudget unbudgetedSteps' >> pure initWordArray
         else pure unbudgetedSteps'
 
 -- See Note [Compilation peculiarities].
@@ -615,7 +637,7 @@ data ErrorWithCause = ErrorWithCause
 
 deriving anyclass instance Exception ErrorWithCause
 
-data NamedDeBruijn = NamedDeBruijn { ndbnString :: String, ndbnIndex :: Word64 }
+data NamedDeBruijn = NamedDeBruijn { ndbnString :: String, ndbnIndex :: Int }
     deriving stock Show
 
 data Term
