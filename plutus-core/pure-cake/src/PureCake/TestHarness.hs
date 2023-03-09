@@ -41,7 +41,7 @@ logEmitter = error "TODO"
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
        -> ( Either Cake.ErrorWithCause Cake.Term
           , Cake.RestrictingSt
-          , [Text] )
+          , [String] )
 runPLC tm =
   let (e, c, l) = PLC.runCekDeBruijn PLC.defaultCekParameters
                                      (PLC.restricting testBudget)
@@ -49,11 +49,11 @@ runPLC tm =
                                      tm
   in ( either (Left . cekExceptionToCake) (Right . termToCake) e
      , restrictingStToCake c
-     , l
+     , unpack <$> l
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.RestrictingSt, [Text])
+        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.RestrictingSt, [String])
 runCake =
   Cake.runCekDeBruijn (Cake.restricting $ exRestrictingBudgetToCake testBudget)
                       noEmitter

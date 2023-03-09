@@ -32,7 +32,6 @@ import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), E
                                                          EvaluationResult (..))
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
-import Data.Text (Text)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
 
@@ -146,7 +145,7 @@ type CekEmitter = [String] -> CekM ()
 -- | Runtime emitter info, similar to 'ExBudgetInfo'.
 data CekEmitterInfo = CekEmitterInfo {
     _cekEmitterInfoEmit       :: !CekEmitter
-    , _cekEmitterInfoGetFinal :: !(IO [Text])
+    , _cekEmitterInfoGetFinal :: !(IO [String])
     }
 
 -- | An emitting mode to execute the CEK machine in, similar to 'ExBudgetMode'.
@@ -243,7 +242,7 @@ runCekM
        ExBudgetMode cost
     -> EmitterMode
     -> (GivenCekReqs => CekM a)
-    -> IO (Either ErrorWithCause a, cost, [Text])
+    -> IO (Either ErrorWithCause a, cost, [String])
 runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = do
     exBudgetMode   <- getExBudgetInfo
     let exBudgetModeSpender       = _exBudgetModeSpender exBudgetMode
@@ -472,7 +471,7 @@ runCekDeBruijn
     :: ExBudgetMode cost
     -> EmitterMode
     -> Term
-    -> IO (Either ErrorWithCause Term, cost, [Text])
+    -> IO (Either ErrorWithCause Term, cost, [String])
 runCekDeBruijn mode emitMode term =
     runCekM mode emitMode $ do
         spendBudgetCek BStartup (cekStartupCost defaultCekMachineCosts)
