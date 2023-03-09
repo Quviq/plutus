@@ -1,12 +1,11 @@
-{-# LANGUAGE BangPatterns             #-}
-{-# LANGUAGE ConstraintKinds          #-}
-{-# LANGUAGE RankNTypes               #-}
-{-# LANGUAGE TypeApplications         #-}
+{-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE ConstraintKinds  #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveAnyClass   #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
-    ( EvaluationResult(..)
-    , CekValue(..)
-    , ErrorWithCause
+    ( CekValue(..)
     , CekBudgetSpender(..)
     , ExBudgetInfo(..)
     , ExBudgetMode(..)
@@ -14,23 +13,27 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , EmitterMode(..)
     , ExRestrictingBudget
     , CekM
+    , ErrorWithCause(..)
+    , UnliftingError (..)
+    , MachineError (..)
+    , EvaluationError (..)
+    , CekUserError(..)
     , runCekDeBruijn
     , throwingWithCause
     )
 where
 
-import PlutusPrelude (coerce)
+import PlutusPrelude
 
 import Data.Primitive.PrimArray
 import PureCake.UntypedPlutusCore.Core
 import Control.Monad
 import Control.Monad.Catch (catch, throwM)
-import Data.Word (Word64, Word8)
+import Data.Word (Word64)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
 import Data.SatInt
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
-import PureCake.PlutusCore.Evaluation.Machine.Exception
 
 data CekMachineCosts =
     CekMachineCosts {
@@ -564,3 +567,51 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
             pure $ initB `minusExBudget` r
         final = ExRestrictingBudget <$> remaining
     pure $ ExBudgetInfo spender final cumulative
+
+
+-- | When unlifting of a PLC term into a Haskell value fails, this error is thrown.
+newtype UnliftingError
+    = UnliftingErrorE String
+    deriving stock Show
+
+-- | Errors which can occur during a run of an abstract machine.
+data MachineError
+    = NonPolymorphicInstantiationMachineError
+      -- ^ An attempt to reduce a not immediately reducible type instantiation.
+    | NonWrapUnwrappedMachineError
+      -- ^ An attempt to unwrap a not wrapped term.
+    | NonFunctionalApplicationMachineError
+      -- ^ An attempt to reduce a not immediately reducible application.
+    | OpenTermEvaluatedMachineError
+      -- ^ An attempt to evaluate an open term.
+    | UnliftingMachineError UnliftingError
+      -- ^ An attempt to compute a constant application resulted in 'ConstAppError'.
+    | BuiltinTermArgumentExpectedMachineError
+      -- ^ A builtin expected a term argument, but something else was received
+    | UnexpectedBuiltinTermArgumentMachineError
+      -- ^ A builtin received a term argument when something else was expected
+    | UnknownBuiltin DefaultFun
+    deriving stock Show
+
+-- | The type of errors (all of them) which can occur during evaluation
+-- (some are used-caused, some are internal).
+data EvaluationError
+    = InternalEvaluationError MachineError
+      -- ^ Indicates bugs.
+    | UserEvaluationError CekUserError
+      -- ^ Indicates user errors.
+    deriving stock Show
+
+data CekUserError
+    -- @plutus-errors@ prevents this from being strict. Not that it matters anyway.
+    = CekOutOfExError ExRestrictingBudget -- ^ The final overspent (i.e. negative) budget.
+    | CekEvaluationFailure -- ^ Error has been called or a builtin application has failed
+    deriving stock Show
+
+-- | An error and (optionally) what caused it.
+data ErrorWithCause = ErrorWithCause
+    { _ewcError :: EvaluationError
+    , _ewcCause :: Maybe Term
+    } deriving stock Show
+
+deriving anyclass instance Exception ErrorWithCause

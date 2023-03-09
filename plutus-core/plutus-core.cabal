@@ -360,7 +360,6 @@ library purecake
     PureCake.TestHarness
   other-modules:
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
-    PureCake.PlutusCore.Evaluation.Machine.Exception
     PureCake.UntypedPlutusCore.Core
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
 
