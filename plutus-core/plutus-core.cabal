@@ -359,12 +359,10 @@ library purecake
   exposed-modules:
     PureCake.TestHarness
   other-modules:
-    PureCake.PlutusCore.Builtin
     PureCake.PlutusCore.DeBruijn
     PureCake.PlutusCore.Evaluation.Machine.ExBudget
     PureCake.PlutusCore.Evaluation.Machine.Exception
     PureCake.UntypedPlutusCore.Core
-    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
 

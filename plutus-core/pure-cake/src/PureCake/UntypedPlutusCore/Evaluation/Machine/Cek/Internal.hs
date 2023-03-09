@@ -20,17 +20,52 @@ where
 import PlutusPrelude (coerce)
 
 import PureCake.UntypedPlutusCore.Core
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
-import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime (..), MakeKnownM(..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
-import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExBudget)
-import PureCake.PlutusCore.Evaluation.Machine.Exception (EvaluationError (..), ErrorWithCause (..),
-                                                         MachineError (..), CekUserError (..),
-                                                         EvaluationResult (..))
 import Control.Monad (unless)
 import Control.Monad.Catch (catch, throwM)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
+
+import PureCake.PlutusCore.Evaluation.Machine.ExBudget
+import PureCake.PlutusCore.Evaluation.Machine.Exception
+
+data CekMachineCosts =
+    CekMachineCosts {
+      cekStartupCost :: ExBudget
+    , cekVarCost     :: ExBudget
+    , cekConstCost   :: ExBudget
+    , cekLamCost     :: ExBudget
+    , cekDelayCost   :: ExBudget
+    , cekForceCost   :: ExBudget
+    , cekApplyCost   :: ExBudget
+    , cekBuiltinCost :: ExBudget
+    }
+
+defaultCekMachineCosts :: CekMachineCosts
+defaultCekMachineCosts =
+  CekMachineCosts { cekStartupCost = ExBudget 100 100
+                  , cekVarCost     = ExBudget 23000 100
+                  , cekConstCost   = ExBudget 23000 100
+                  , cekLamCost     = ExBudget 23000 100
+                  , cekDelayCost   = ExBudget 23000 100
+                  , cekForceCost   = ExBudget 23000 100
+                  , cekApplyCost   = ExBudget 23000 100
+                  , cekBuiltinCost = ExBudget 23000 100
+                  }
+
+data MakeKnownM a
+    = MakeKnownFailure [String] MachineError
+    | MakeKnownSuccess a
+    | MakeKnownSuccessWithLogs [String] a
+
+data BuiltinRuntime val
+    = BuiltinResult ExBudget (MakeKnownM val)
+    | BuiltinExpectArgument (val -> BuiltinRuntime val)
+    | BuiltinExpectForce (BuiltinRuntime val)
+
+data BuiltinsRuntime fun val = BuiltinsRuntime
+    { unBuiltinsRuntime :: fun -> BuiltinRuntime val
+    }
 
 data StepKind
     = BConst
