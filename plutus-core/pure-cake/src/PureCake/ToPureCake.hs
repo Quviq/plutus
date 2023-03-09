@@ -99,7 +99,7 @@ valToCake (PLC.ValueOf uni a) = case uni of
   u                                             -> error $ "we don't yet handle " ++ show u
 
 nameToCake :: PLC.NamedDeBruijn -> Cake.NamedDeBruijn
-nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) (Cake.Index ix)
+nameToCake (PLC.NamedDeBruijn str (PLC.Index ix)) = Cake.NamedDeBruijn (unpack str) ix
 
 instance Eq Cake.NamedDeBruijn where
     -- ignoring actual names and only relying solely on debruijn indices
@@ -111,7 +111,6 @@ deriving stock instance Eq Cake.MachineError
 deriving stock instance Eq Cake.EvaluationError
 deriving stock instance Eq Cake.Term
 deriving stock instance Eq Cake.ErrorWithCause
-deriving stock instance Eq Cake.Index
 deriving stock instance Eq Cake.ExRestrictingBudget
 deriving stock instance Eq Cake.ExBudget
 deriving stock instance Eq Cake.Const

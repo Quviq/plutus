@@ -6,7 +6,6 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal where
 
 import Data.ByteString hiding (length)
 import Data.Word
-import Data.Coerce
 import Data.Primitive.PrimArray
 import Control.Monad
 import Control.Monad.Catch (catch, throwM, Exception)
@@ -218,7 +217,7 @@ dischargeCekValEnv valEnv = go 0
   go :: Word64 -> Term -> Term
   go !lamCnt = \t0 -> case t0 of
     LamAbs name body -> LamAbs name $ go (lamCnt+1) body
-    var@(Var (NamedDeBruijn _ ndbnIx)) -> let ix = coerce ndbnIx :: Word64  in
+    var@(Var (NamedDeBruijn _ ndbnIx)) -> let ix = ndbnIx in
         if lamCnt >= ix
         -- the index n is less-than-or-equal than the number of lambdas we have descended
         -- this means that n points to a bound variable, so we don't discharge it.
@@ -251,7 +250,7 @@ dischargeCekValue = \t -> case t of
     -- lambda, otherwise @name@ could clash with the names that we have in @env@.
     VLamAbs (NamedDeBruijn n _ix) body env ->
         -- The index on the binder is meaningless, we put `0` by convention, see 'Binder'.
-        dischargeCekValEnv env $ LamAbs (NamedDeBruijn n deBruijnInitIndex) body
+        dischargeCekValEnv env $ LamAbs (NamedDeBruijn n 0) body
     -- We only return a discharged builtin application when (a) it's being returned by the machine,
     -- or (b) it's needed for an error message.
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
@@ -293,7 +292,7 @@ lookupVarName :: NamedDeBruijn
               -> CekValEnv
               -> CekM CekValue
 lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
-    case varEnv `indexOne` coerce varIx of
+    case varEnv `indexOne` varIx of
         Nothing  -> throwingWithCause (InternalEvaluationError OpenTermEvaluatedMachineError)
                       $ Just (Var varName)
         Just val -> pure val
@@ -616,19 +615,7 @@ data ErrorWithCause = ErrorWithCause
 
 deriving anyclass instance Exception ErrorWithCause
 
-
-
--- | A relative index used for de Bruijn identifiers.
-newtype Index = Index Word64
-    deriving newtype Show
-
--- | The LamAbs index (for debruijn indices) and the starting level of DeBruijn monad
-deBruijnInitIndex :: Index
-deBruijnInitIndex = Index 0
-
--- The bangs gave us a speedup of 6%.
--- | A term name as a de Bruijn index.
-data NamedDeBruijn = NamedDeBruijn { ndbnString :: !String, ndbnIndex :: !Index }
+data NamedDeBruijn = NamedDeBruijn { ndbnString :: !String, ndbnIndex :: !Word64 }
     deriving stock Show
 
 data Term
