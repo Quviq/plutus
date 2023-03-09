@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns     #-}
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE RankNTypes       #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveAnyClass   #-}
 
