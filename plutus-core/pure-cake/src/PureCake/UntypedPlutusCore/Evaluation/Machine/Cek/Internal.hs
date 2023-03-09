@@ -2,35 +2,38 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveAnyClass   #-}
 
-module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
-    ( CekValue(..)
-    , CekBudgetSpender(..)
-    , ExBudgetInfo(..)
-    , ExBudgetMode(..)
-    , CekEmitterInfo(..)
-    , EmitterMode(..)
-    , ExRestrictingBudget
-    , CekM
-    , ErrorWithCause(..)
-    , UnliftingError (..)
-    , MachineError (..)
-    , EvaluationError (..)
-    , CekUserError(..)
-    , runCekDeBruijn
-    , throwingWithCause
-    )
-where
+module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal where
 
+import Data.ByteString hiding (length)
+import Data.Word
 import Data.Coerce
 import Data.Primitive.PrimArray
-import PureCake.UntypedPlutusCore.Core
 import Control.Monad
 import Control.Monad.Catch (catch, throwM, Exception)
-import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
 import Data.SatInt
 
-import PureCake.PlutusCore.Evaluation.Machine.ExBudget
+-- | Counts size in machine words.
+type ExMemory = SatInt
+
+-- | Counts CPU units in picoseconds: maximum value for SatInt is 2^63 ps, or
+-- appproximately 106 days.
+type ExCPU = SatInt
+
+data ExBudget = ExBudget { exBudgetCPU :: ExCPU, exBudgetMemory :: ExMemory }
+    deriving stock Show
+
+minusExBudget :: ExBudget -> ExBudget -> ExBudget
+minusExBudget (ExBudget c1 m1) (ExBudget c2 m2) =
+  ExBudget (c1 - c2) (m1 - m2)
+
+stimesExBudget :: Integral i  => i -> ExBudget -> ExBudget
+stimesExBudget r (ExBudget cpu mem) = ExBudget (fromIntegral r * cpu)
+                                               (fromIntegral r * mem)
+
+newtype ExRestrictingBudget = ExRestrictingBudget
+    { unExRestrictingBudget :: ExBudget
+    } deriving stock Show
 
 data CekMachineCosts =
     CekMachineCosts {
@@ -612,3 +615,44 @@ data ErrorWithCause = ErrorWithCause
     } deriving stock Show
 
 deriving anyclass instance Exception ErrorWithCause
+
+
+
+-- | A relative index used for de Bruijn identifiers.
+newtype Index = Index Word64
+    deriving newtype Show
+
+-- | The LamAbs index (for debruijn indices) and the starting level of DeBruijn monad
+deBruijnInitIndex :: Index
+deBruijnInitIndex = Index 0
+
+-- The bangs gave us a speedup of 6%.
+-- | A term name as a de Bruijn index.
+data NamedDeBruijn = NamedDeBruijn { ndbnString :: !String, ndbnIndex :: !Index }
+    deriving stock Show
+
+data Term
+    = Var NamedDeBruijn
+    | LamAbs NamedDeBruijn Term
+    | Apply Term Term
+    | Force Term
+    | Delay Term
+    | Constant Const
+    | Builtin DefaultFun
+    | Error
+    deriving stock Show
+
+newtype Binder = Binder { unBinder :: NamedDeBruijn }
+
+data Const =
+    ConstInteger Integer
+  | ConstString String
+  | ConstBool Bool
+  | ConstByteString ByteString
+  | ConstUnit
+  | ConstPair Const Const
+  | ConstList [Const]
+  deriving stock Show
+
+data DefaultFun = AddInteger
+  deriving stock (Ord, Eq, Show)

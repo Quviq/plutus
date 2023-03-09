@@ -359,8 +359,6 @@ library purecake
   exposed-modules:
     PureCake.TestHarness
   other-modules:
-    PureCake.PlutusCore.Evaluation.Machine.ExBudget
-    PureCake.UntypedPlutusCore.Core
     PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
 
     PureCake.ToPureCake

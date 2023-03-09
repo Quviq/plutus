@@ -17,7 +17,6 @@ import PlutusCore.TypeCheck qualified as PLC
 import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
-import PureCake.UntypedPlutusCore.Core qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
 
 import PureCake.ToPureCake
