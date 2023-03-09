@@ -19,13 +19,10 @@ import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.PlutusCore.Evaluation.Machine.Exception qualified as Cake
 import PureCake.UntypedPlutusCore.Core qualified as Cake
-import PureCake.PlutusCore.DeBruijn qualified as Cake
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget qualified as Cake
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 
-restrictingStToCake :: PLC.RestrictingSt -> Cake.RestrictingSt
-restrictingStToCake (PLC.RestrictingSt exBudget) =
-  Cake.RestrictingSt (exRestrictingBudgetToCake exBudget)
+restrictingStToCake :: PLC.RestrictingSt -> Cake.ExRestrictingBudget
+restrictingStToCake (PLC.RestrictingSt exBudget) = exRestrictingBudgetToCake exBudget
 
 cekExceptionToCake :: PLC.CekEvaluationException PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun
                    -> Cake.ErrorWithCause
@@ -118,7 +115,5 @@ deriving stock instance Eq Cake.Term
 deriving stock instance Eq Cake.ErrorWithCause
 deriving stock instance Eq Cake.Index
 deriving stock instance Eq Cake.ExRestrictingBudget
-deriving stock instance Eq Cake.RestrictingSt
 deriving stock instance Eq Cake.ExBudget
 deriving stock instance Eq Cake.Const
-deriving stock instance Show Cake.RestrictingSt

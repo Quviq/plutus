@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns             #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE RankNTypes               #-}
+{-# LANGUAGE TypeApplications         #-}
 
 module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     ( EvaluationResult(..)
@@ -11,6 +12,7 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     , ExBudgetMode(..)
     , CekEmitterInfo(..)
     , EmitterMode(..)
+    , ExRestrictingBudget
     , CekM
     , runCekDeBruijn
     , throwingWithCause
@@ -19,12 +21,13 @@ where
 
 import PlutusPrelude (coerce)
 
+import Data.Primitive.PrimArray
 import PureCake.UntypedPlutusCore.Core
-import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
-import Control.Monad (unless)
+import Control.Monad
 import Control.Monad.Catch (catch, throwM)
 import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
+import Data.SatInt
 
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget
 import PureCake.PlutusCore.Evaluation.Machine.Exception
@@ -152,17 +155,17 @@ newtype CekBudgetSpender = CekBudgetSpender
 -- General enough to be able to handle a spender having one, two or any number of 'STRef's
 -- under the hood.
 -- | Runtime budgeting info.
-data ExBudgetInfo cost = ExBudgetInfo
+data ExBudgetInfo = ExBudgetInfo
     { _exBudgetModeSpender       :: !CekBudgetSpender  -- ^ A spending function.
-    , _exBudgetModeGetFinal      :: !(IO cost) -- ^ For accessing the final state.
+    , _exBudgetModeGetFinal      :: !(IO ExRestrictingBudget) -- ^ For accessing the final state.
     , _exBudgetModeGetCumulative :: !(IO ExBudget) -- ^ For accessing the cumulative budget.
     }
 
 -- We make a separate data type here just to save the caller of the CEK machine from those pesky
 -- 'ST'-related details.
 -- | A budgeting mode to execute the CEK machine in.
-newtype ExBudgetMode cost = ExBudgetMode
-    { unExBudgetMode :: IO (ExBudgetInfo cost)
+newtype ExBudgetMode = ExBudgetMode
+    { unExBudgetMode :: IO ExBudgetInfo
     }
 
 type Slippage = Word8
@@ -261,11 +264,11 @@ tryError :: CekM a -> CekM (Either ErrorWithCause a)
 tryError a = (Right <$> a) `catch` (pure . Left)
 
 runCekM
-    :: forall a cost.
-       ExBudgetMode cost
+    :: forall a.
+       ExBudgetMode
     -> EmitterMode
     -> (CekEmitter -> CekBudgetSpender -> CekM a)
-    -> IO (Either ErrorWithCause a, cost, [String])
+    -> IO (Either ErrorWithCause a, ExRestrictingBudget, [String])
 runCekM (ExBudgetMode getExBudgetInfo) (EmitterMode getEmitterMode) a = do
     exBudgetMode   <- getExBudgetInfo
     let exBudgetModeSpender       = _exBudgetModeSpender exBudgetMode
@@ -494,12 +497,12 @@ enterComputeCek cekEmitter cekSpender = computeCek (toWordArray 0) where
 -- See Note [Compilation peculiarities].
 -- | Evaluate a term using the CEK machine and keep track of costing, logging is optional.
 runCekDeBruijn
-    :: ExBudgetMode cost
+    :: ExRestrictingBudget
     -> EmitterMode
     -> Term
-    -> IO (Either ErrorWithCause Term, cost, [String])
-runCekDeBruijn mode emitMode term =
-    runCekM mode emitMode $ \ cekEmitter cekSpender -> do
+    -> IO (Either ErrorWithCause Term, ExRestrictingBudget, [String])
+runCekDeBruijn limit emitMode term =
+    runCekM (restricting limit) emitMode $ \ cekEmitter cekSpender -> do
         spendBudgetCek cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
         enterComputeCek cekEmitter cekSpender NoFrame [] term
 
@@ -520,3 +523,44 @@ defaultRuntime = BuiltinsRuntime go
               BuiltinResult (ExBudget 0 0) (MakeKnownSuccess (VCon $ ConstInteger $ i + j))
             _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)
         _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)
+
+-- | For execution, to avoid overruns.
+restricting :: ExRestrictingBudget -> ExBudgetMode
+restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMode $ do
+    -- We keep the counters in a PrimArray. This is better than an STRef since it stores its contents unboxed.
+    --
+    -- If we don't specify the element type then GHC has difficulty inferring it, but it's
+    -- annoying to specify the monad, since it refers to the 's' which is not in scope.
+    ref <- newPrimArray @_ @SatInt 2
+    let
+        cpuIx = 0
+        memIx = 1
+        readCpu = coerce @_ @ExCPU <$> readPrimArray ref cpuIx
+        writeCpu cpu = writePrimArray ref cpuIx $ coerce cpu
+        readMem = coerce @_ @ExMemory <$> readPrimArray ref memIx
+        writeMem mem = writePrimArray ref memIx $ coerce mem
+
+    writeCpu cpuInit
+    writeMem memInit
+    let
+        spend _ (ExBudget cpuToSpend memToSpend) = do
+            cpuLeft <- readCpu
+            memLeft <- readMem
+            let cpuLeft' = cpuLeft - cpuToSpend
+            let memLeft' = memLeft - memToSpend
+            -- Note that even if we throw an out-of-budget error, we still need to record
+            -- what the final state was.
+            writeCpu cpuLeft'
+            writeMem memLeft'
+            when (cpuLeft' < 0 || memLeft' < 0) $ do
+                let budgetLeft = ExBudget cpuLeft' memLeft'
+                throwingWithCause
+                    (UserEvaluationError . CekOutOfExError $ ExRestrictingBudget budgetLeft)
+                    Nothing
+        spender = CekBudgetSpender spend
+        remaining = ExBudget <$> readCpu <*> readMem
+        cumulative = do
+            r <- remaining
+            pure $ initB `minusExBudget` r
+        final = ExRestrictingBudget <$> remaining
+    pure $ ExBudgetInfo spender final cumulative

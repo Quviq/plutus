@@ -18,7 +18,6 @@ import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.UntypedPlutusCore.Core qualified as Cake
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.ExBudgetMode qualified as Cake
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
 
 import PureCake.ToPureCake
@@ -40,7 +39,7 @@ logEmitter = error "TODO"
 
 runPLC :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
        -> ( Either Cake.ErrorWithCause Cake.Term
-          , Cake.RestrictingSt
+          , Cake.ExRestrictingBudget
           , [String] )
 runPLC tm =
   let (e, c, l) = PLC.runCekDeBruijn PLC.defaultCekParameters
@@ -53,9 +52,9 @@ runPLC tm =
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.RestrictingSt, [String])
+        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.ExRestrictingBudget, [String])
 runCake =
-  Cake.runCekDeBruijn (Cake.restricting $ exRestrictingBudgetToCake testBudget)
+  Cake.runCekDeBruijn (exRestrictingBudgetToCake testBudget)
                       noEmitter
   . termToCake
 

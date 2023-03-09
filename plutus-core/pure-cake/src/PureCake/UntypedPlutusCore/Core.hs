@@ -1,15 +1,22 @@
 {-# LANGUAGE EmptyDataDeriving  #-}
 
-module PureCake.UntypedPlutusCore.Core
-    (  Binder (..)
-    , Term (..)
-    , Const(..)
-    , DefaultFun (..)
-    ) where
+module PureCake.UntypedPlutusCore.Core where
 
 import Data.ByteString
+import Data.Word
 
-import PureCake.PlutusCore.DeBruijn
+-- | A relative index used for de Bruijn identifiers.
+newtype Index = Index Word64
+    deriving newtype Show
+
+-- | The LamAbs index (for debruijn indices) and the starting level of DeBruijn monad
+deBruijnInitIndex :: Index
+deBruijnInitIndex = Index 0
+
+-- The bangs gave us a speedup of 6%.
+-- | A term name as a de Bruijn index.
+data NamedDeBruijn = NamedDeBruijn { ndbnString :: !String, ndbnIndex :: !Index }
+    deriving stock Show
 
 data Term
     = Var NamedDeBruijn
