@@ -1,7 +1,4 @@
-{-# LANGUAGE DeriveAnyClass   #-}
 module PureCake.Implementation where
-
-import Data.Primitive.PrimArray
 
 import PureCake.HaskellPrelude
 
@@ -23,8 +20,8 @@ overIndex i f ws = case ws of
   w:ws' -> w : overIndex (i - 1) f ws'
   []   -> error "out of bounds"
 
-readArray :: WordArray -> Int -> Word8
-readArray = (!!)
+readWordArray :: WordArray -> Int -> Word8
+readWordArray = (!!)
 
 iforWordArray :: WordArray -> (Int -> Word8 -> CekM ()) -> CekM ()
 iforWordArray ws f = go 0 ws
@@ -506,7 +503,7 @@ enterComputeCek cekEmitter cekSpender = computeCek initWordArray where
         -- so they don't survive further compilation, see https://stackoverflow.com/a/14090277
         let ix = fromIntegral $ fromEnumStepKind kind
             unbudgetedSteps' = overIndex 7 (+1) $ overIndex ix (+1) unbudgetedSteps
-            unbudgetedStepsTotal = readArray unbudgetedSteps' 7
+            unbudgetedStepsTotal = readWordArray unbudgetedSteps' 7
         -- There's no risk of overflow here, since we only ever increment the total
         -- steps by 1 and then check this condition.
         if unbudgetedStepsTotal >= defaultSlippage
@@ -550,14 +547,14 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
     --
     -- If we don't specify the element type then GHC has difficulty inferring it, but it's
     -- annoying to specify the monad, since it refers to the 's' which is not in scope.
-    ref <- newPrimArray 2
+    ref <- newArray 2
     let
         cpuIx = 0
         memIx = 1
-        readCpu = readPrimArray ref cpuIx
-        writeCpu cpu = writePrimArray ref cpuIx cpu
-        readMem = readPrimArray ref memIx
-        writeMem mem = writePrimArray ref memIx mem
+        readCpu = readArray ref cpuIx
+        writeCpu cpu = writeArray ref cpuIx cpu
+        readMem = readArray ref memIx
+        writeMem mem = writeArray ref memIx mem
 
     writeCpu cpuInit
     writeMem memInit
