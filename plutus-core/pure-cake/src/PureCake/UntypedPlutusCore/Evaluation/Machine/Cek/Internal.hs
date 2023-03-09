@@ -21,13 +21,12 @@ module PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
     )
 where
 
-import PlutusPrelude
-
+import Data.Coerce
 import Data.Primitive.PrimArray
 import PureCake.UntypedPlutusCore.Core
 import Control.Monad
-import Control.Monad.Catch (catch, throwM)
-import Data.Word (Word64)
+import Control.Monad.Catch (catch, throwM, Exception)
+import Data.Word (Word64, Word8)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
 import Data.SatInt
 
@@ -536,10 +535,10 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
     let
         cpuIx = 0
         memIx = 1
-        readCpu = coerce @_ @ExCPU <$> readPrimArray ref cpuIx
-        writeCpu cpu = writePrimArray ref cpuIx $ coerce cpu
-        readMem = coerce @_ @ExMemory <$> readPrimArray ref memIx
-        writeMem mem = writePrimArray ref memIx $ coerce mem
+        readCpu = readPrimArray ref cpuIx
+        writeCpu cpu = writePrimArray ref cpuIx cpu
+        readMem = readPrimArray ref memIx
+        writeMem mem = writePrimArray ref memIx mem
 
     writeCpu cpuInit
     writeMem memInit
