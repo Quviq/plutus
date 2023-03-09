@@ -359,8 +359,7 @@ library purecake
   exposed-modules:
     PureCake.TestHarness
   other-modules:
-    PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal
-
+    PureCake.Implementation
     PureCake.ToPureCake
 
     ErrorCode

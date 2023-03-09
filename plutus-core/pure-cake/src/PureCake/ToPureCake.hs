@@ -17,7 +17,7 @@ import PlutusCore.Evaluation.Machine.ExBudget   qualified as PLC
 import UntypedPlutusCore.Core                   qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
-import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.Internal qualified as Cake
+import PureCake.Implementation qualified as Cake
 
 restrictingStToCake :: PLC.RestrictingSt -> Cake.ExRestrictingBudget
 restrictingStToCake (PLC.RestrictingSt exBudget) = exRestrictingBudgetToCake exBudget
