@@ -5,7 +5,6 @@ module PureCake.Implementation where
 import Data.ByteString hiding (length)
 import Data.Word
 import Data.Primitive.PrimArray
-import Control.Monad
 import Control.Monad.Catch (catch, throwM, Exception)
 import Data.Word64Array.Word8 (WordArray, iforWordArray, overIndex, readArray, toWordArray)
 import Data.SatInt
@@ -475,7 +474,8 @@ enterComputeCek cekEmitter cekSpender = computeCek (toWordArray 0) where
     -- Skip index 7, that's the total counter
     -- See Note [Structure of the step counter]
     {-# INLINE spend #-}
-    spend i w = unless (i == 7) $
+    spend 7 _ = pure ()
+    spend i w =
       let kind = toEnumStepKind i in spendBudgetCek cekSpender (BStep kind)
                                                     (stimesExBudget w (cekStepCost defaultCekMachineCosts kind))
 
@@ -552,11 +552,13 @@ restricting (ExRestrictingBudget initB@(ExBudget cpuInit memInit)) = ExBudgetMod
             -- what the final state was.
             writeCpu cpuLeft'
             writeMem memLeft'
-            when (cpuLeft' < 0 || memLeft' < 0) $ do
+            if (cpuLeft' < 0 || memLeft' < 0)
+            then do
                 let budgetLeft = ExBudget cpuLeft' memLeft'
                 throwingWithCause
                     (UserEvaluationError . CekOutOfExError $ ExRestrictingBudget budgetLeft)
                     Nothing
+            else pure ()
         spender = CekBudgetSpender spend
         remaining = ExBudget <$> readCpu <*> readMem
         cumulative = do
