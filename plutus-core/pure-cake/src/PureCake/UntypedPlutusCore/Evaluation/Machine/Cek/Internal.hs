@@ -24,8 +24,6 @@ import PlutusPrelude (coerce)
 import PureCake.UntypedPlutusCore.Core
 import PureCake.UntypedPlutusCore.Evaluation.Machine.Cek.CekMachineCosts
 import Data.Functor (($>))
-import Data.RandomAccessList.Class qualified as Env (cons, empty, indexOne)
-import Data.RandomAccessList.SkewBinary qualified as Env (RAList)
 import PureCake.PlutusCore.Builtin (BuiltinRuntime (..), BuiltinsRuntime (..), MakeKnownM(..))
 import PureCake.PlutusCore.DeBruijn (Index (..), NamedDeBruijn (..), deBruijnInitIndex)
 import PureCake.PlutusCore.Evaluation.Machine.ExBudget (ExBudget (..), stimesExBudget)
@@ -111,7 +109,7 @@ data CekValue =
       -- ^ The partial application and its costing function.
       -- Check the docs of 'BuiltinRuntime' for details.
 
-type CekValEnv = Env.RAList CekValue
+type CekValEnv = [CekValue]
 
 -- | The CEK machine is parameterized over a @spendBudget@ function. This makes the budgeting machinery extensible
 -- and allows us to separate budgeting logic from evaluation logic and avoid branching on the union
@@ -203,11 +201,16 @@ dischargeCekValEnv valEnv = go 0
                -- var is in the env, discharge its value
                dischargeCekValue
                -- index relative to (as seen from the point of view of) the environment
-               (Env.indexOne valEnv $ ix - lamCnt)
+               (indexOne valEnv $ ix - lamCnt)
     Apply fun arg    -> Apply (go lamCnt fun) $ go lamCnt arg
     Delay term       -> Delay $ go lamCnt term
     Force term       -> Force $ go lamCnt term
     t -> t
+
+indexOne :: [a] -> Word64 -> Maybe a
+indexOne xs i
+  | fromIntegral (i - 1) >= length xs = Nothing
+  | otherwise = Just $ xs !! fromIntegral (i - 1)
 
 -- | Convert a 'CekValue' into a 'Term' by replacing all bound variables with the terms
 -- they're bound to (which themselves have to be obtain by recursively discharging values).
@@ -263,7 +266,7 @@ lookupVarName :: NamedDeBruijn
               -> CekValEnv
               -> CekM CekValue
 lookupVarName varName@(NamedDeBruijn _ varIx) varEnv =
-    case varEnv `Env.indexOne` coerce varIx of
+    case varEnv `indexOne` coerce varIx of
         Nothing  -> throwingWithCause (InternalEvaluationError OpenTermEvaluatedMachineError)
                       $ Just (Var varName)
         Just val -> pure val
@@ -415,7 +418,7 @@ enterComputeCek = computeCek (toWordArray 0) where
         -> CekValue -- rhs of application
         -> CekM Term
     applyEvaluate !unbudgetedSteps !ctx (VLamAbs _ body env) arg =
-        computeCek unbudgetedSteps ctx (Env.cons arg env) body
+        computeCek unbudgetedSteps ctx (arg:env) body
     -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
     -- 'VCon'. After that the bangs here were making things a tiny bit slower and so we removed them.
     applyEvaluate !unbudgetedSteps !ctx (VBuiltin fun term runtime) arg = do
@@ -473,7 +476,7 @@ runCekDeBruijn
 runCekDeBruijn mode emitMode term =
     runCekM mode emitMode $ do
         spendBudgetCek BStartup (cekStartupCost defaultCekMachineCosts)
-        enterComputeCek NoFrame Env.empty term
+        enterComputeCek NoFrame [] term
 
 throwingWithCause :: EvaluationError -> Maybe Term -> CekM x
 throwingWithCause e cause = throwError $ ErrorWithCause e cause
