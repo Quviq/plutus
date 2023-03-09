@@ -629,8 +629,6 @@ data Term
     | Error
     deriving stock Show
 
-newtype Binder = Binder { unBinder :: NamedDeBruijn }
-
 data Const =
     ConstInteger Integer
   | ConstString String
