@@ -53,10 +53,7 @@ runPLC tm =
      )
 
 runCake :: PLC.Term PLC.NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
-        -> ( Either Cake.ErrorWithCause
-                    Cake.Term
-           , Cake.RestrictingSt
-           , [Text] )
+        -> IO (Either Cake.ErrorWithCause Cake.Term, Cake.RestrictingSt, [Text])
 runCake =
   Cake.runCekDeBruijn (Cake.restricting $ exRestrictingBudgetToCake testBudget)
                       noEmitter
@@ -74,7 +71,7 @@ prop_run_PLC_Cake = withMaxSuccess 10000 $
           pure $ () <$ ctm''
     in case etm' of
         Left _    -> error "Something wrong"
-        Right tm' -> runPLC tm' === runCake tm'
+        Right tm' -> ioProperty $ (runPLC tm' ===) <$> runCake tm'
 
 -- TODO: no clue about these numbers
 testBudget :: PLC.ExRestrictingBudget
