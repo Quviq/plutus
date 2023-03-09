@@ -1,4 +1,3 @@
-{-# LANGUAGE PartialTypeSignatures #-}
 module PureCake.HaskellPrelude
   ( raise
   , tryError
@@ -10,6 +9,7 @@ module PureCake.HaskellPrelude
 
 import Control.Monad.Catch (throwM, catch, SomeException)
 import Data.Primitive.PrimArray
+import GHC.Prim
 
 raise :: IO a
 raise = throwM $ userError "Bad dog"
@@ -17,11 +17,11 @@ raise = throwM $ userError "Bad dog"
 tryError :: IO a -> IO (Maybe a)
 tryError m = fmap Just m `catch` \ (_ :: SomeException) -> pure Nothing
 
-newArray :: Int -> IO (MutablePrimArray _ Int)
+newArray :: Int -> IO (MutablePrimArray RealWorld Int)
 newArray = newPrimArray
 
-readArray :: MutablePrimArray _ Int -> Int -> IO Int
+readArray :: MutablePrimArray RealWorld Int -> Int -> IO Int
 readArray = readPrimArray
 
-writeArray :: MutablePrimArray _ Int -> Int -> Int -> IO ()
+writeArray :: MutablePrimArray RealWorld Int -> Int -> Int -> IO ()
 writeArray = writePrimArray
