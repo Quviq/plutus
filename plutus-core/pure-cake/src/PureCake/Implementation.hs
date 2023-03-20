@@ -24,9 +24,21 @@ type BuiltinsRuntime fun val = fun -> BuiltinRuntime val
 -- of all possible budgeting state types during evaluation.
 type CekBudgetSpender = ExBudgetCategory -> ExBudget -> CekM ()
 
+-- We make a separate data type here just to save the caller of the CEK machine from those pesky
+-- 'ST'-related details.
+-- | A budgeting mode to execute the CEK machine in.
+type ExBudgetMode = M ExBudgetInfo
+
+type CekEmitter = [String] -> CekM ()
+
+-- | An emitting mode to execute the CEK machine in, similar to 'ExBudgetMode'.
+type EmitterMode = M ExBudget -> M CekEmitterInfo
+
+type CekM = M
+
 -- PURECAKE START
 
-main :: IO ()
+main :: M ()
 main = pure ()
 
 -- TODO: this is a bit of an approximation!
@@ -245,94 +257,43 @@ data Const =
 
 data DefaultFun = AddInteger
 
--- PURECAKE STOP
-
 -- General enough to be able to handle a spender having one, two or any number of 'STRef's
 -- under the hood.
 -- | Runtime budgeting info.
 data ExBudgetInfo =
   ExBudgetInfo
-    (ExBudgetCategory -> ExBudget -> IO ())         -- ^ A spending function.
-    (IO ExBudget) -- ^ For accessing the final state.
-    (IO ExBudget)            -- ^ For accessing the cumulative budget.
+    (ExBudgetCategory -> ExBudget -> M ())         -- ^ A spending function.
+    (M ExBudget) -- ^ For accessing the final state.
+    (M ExBudget)            -- ^ For accessing the cumulative budget.
 
-_exBudgetModeSpender       :: ExBudgetInfo -> CekBudgetSpender
-_exBudgetModeSpender b = case b of ExBudgetInfo a _ _ -> a
-_exBudgetModeGetFinal      :: ExBudgetInfo -> IO ExRestrictingBudget
-_exBudgetModeGetFinal b = case b of ExBudgetInfo _ a _ -> a
-_exBudgetModeGetCumulative :: ExBudgetInfo -> IO ExBudget
-_exBudgetModeGetCumulative b = case b of ExBudgetInfo _ _ a -> a
-
--- We make a separate data type here just to save the caller of the CEK machine from those pesky
--- 'ST'-related details.
--- | A budgeting mode to execute the CEK machine in.
-type ExBudgetMode = IO ExBudgetInfo
+getExBudgetModeSpender :: ExBudgetInfo -> CekBudgetSpender
+getExBudgetModeSpender x = case x of ExBudgetInfo a b c -> a
+getExBudgetModeGetFinal :: ExBudgetInfo -> M ExRestrictingBudget
+getExBudgetModeGetFinal x = case x of ExBudgetInfo a b c -> b
+getExBudgetModeGetCumulative :: ExBudgetInfo -> M ExBudget
+getExBudgetModeGetCumulative x = case x of ExBudgetInfo a b c -> c
 
 -- See Note [Cost slippage]
 -- | The default number of slippage (in machine steps) to allow.
 defaultSlippage :: Integer
 defaultSlippage = 200
 
-type CekEmitter = [String] -> CekM ()
-
 -- | Runtime emitter info, similar to 'ExBudgetInfo'.
-data CekEmitterInfo = CekEmitterInfo CekEmitter (IO [String])
+data CekEmitterInfo = CekEmitterInfo ([String] -> M ()) (M [String])
 
-_cekEmitterInfoEmit :: CekEmitterInfo -> CekEmitter
-_cekEmitterInfoEmit i = case i of CekEmitterInfo e _ -> e
-_cekEmitterInfoGetFinal :: CekEmitterInfo -> IO [String]
-_cekEmitterInfoGetFinal i = case i of CekEmitterInfo _ e -> e
-
--- | An emitting mode to execute the CEK machine in, similar to 'ExBudgetMode'.
-type EmitterMode = IO ExBudget -> IO CekEmitterInfo
-
-type CekM = IO
-
-throwingDischarged
-    :: EvaluationError
-    -> CekValue
-    -> CekM x
-throwingDischarged e = throwingWithCause e . Just . dischargeCekValue
+getCekEmitterInfoEmit :: CekEmitterInfo -> [String] -> M ()
+getCekEmitterInfoEmit i = case i of CekEmitterInfo a b -> a
+getCekEmitterInfoGetFinal :: CekEmitterInfo -> M [String]
+getCekEmitterInfoGetFinal i = case i of CekEmitterInfo a b -> b
 
 deBruijnIndex :: NamedDeBruijn -> Integer
-deBruijnIndex db = case db of NamedDeBruijn _ ix -> ix
-
--- see Note [Scoping].
--- | Instantiate all the free variables of a term by looking them up in an environment.
--- Mutually recursive with dischargeCekVal.
-dischargeCekValEnv :: [CekValue]
-                   -> Term
-                   -> Term
-dischargeCekValEnv valEnv =
-  -- The lamCnt is just a counter that measures how many lambda-abstractions
-  -- we have descended in the `go` loop.
-  let go :: Integer -> Term -> Term
-      go lamCnt = \t0 -> case t0 of
-        LamAbs name body -> LamAbs name $ go (lamCnt+1) body
-        Var db ->
-          let ix = deBruijnIndex db in
-          if lamCnt >= ix
-          -- the index n is less-than-or-equal than the number of lambdas we have descended
-          -- this means that n points to a bound variable, so we don't discharge it.
-          then t0
-          else maybe
-                 -- var is free, leave it alone
-                 t0
-                 -- var is in the env, discharge its value
-                 dischargeCekValue
-                 -- index relative to (as seen from the point of view of) the environment
-                 (indexOne valEnv $ ix - lamCnt)
-        Apply fun arg    -> Apply (go lamCnt fun) $ go lamCnt arg
-        Delay term       -> Delay $ go lamCnt term
-        Force term       -> Force $ go lamCnt term
-        t -> t
-  in go 0
+deBruijnIndex db = case db of NamedDeBruijn s ix -> ix
 
 indexOne :: [a] -> Integer -> Maybe a
 indexOne xs i =
   if (i - 1) >= len xs
   then Nothing
-  else Just $ index xs (i - 1)
+  else Just (index xs (i - 1))
 
 -- | Convert a 'CekValue' into a 'Term' by replacing all bound variables with the terms
 -- they're bound to (which themselves have to be obtain by recursively discharging values).
@@ -345,13 +306,53 @@ dischargeCekValue t = case t of
     -- lambda, otherwise @name@ could clash with the names that we have in @env@.
     VLamAbs db body env ->
       case db of
-        NamedDeBruijn n _ix ->
+        NamedDeBruijn n ix ->
           -- The index on the binder is meaningless, we put `0` by convention, see 'Binder'.
           dischargeCekValEnv env $ LamAbs (NamedDeBruijn n 0) body
     -- We only return a discharged builtin application when (a) it's being returned by the machine,
     -- or (b) it's needed for an error message.
     -- @term@ is fully discharged, so we can return it directly without any further discharging.
-    VBuiltin _ term _                    -> term
+    VBuiltin a term b                    -> term
+
+-- see Note [Scoping].
+-- | Instantiate all the free variables of a term by looking them up in an environment.
+-- Mutually recursive with dischargeCekVal.
+dischargeCekValEnv :: [CekValue]
+                   -> Term
+                   -> Term
+dischargeCekValEnv valEnv =
+  -- The lamCnt is just a counter that measures how many lambda-abstractions
+  -- we have descended in the `go` loop.
+  let go :: Integer -> Term -> Term
+      go lamCnt t0 = case t0 of
+        LamAbs name body -> LamAbs name (go (lamCnt + 1) body)
+        Var db ->
+          let ix = deBruijnIndex db in
+          if lamCnt >= ix
+          -- the index n is less-than-or-equal than the number of lambdas we have descended
+          -- this means that n points to a bound variable, so we don't discharge it.
+          then t0
+          else maybe
+                 -- var is free, leave it alone
+                 t0
+                 -- var is in the env, discharge its value
+                 dischargeCekValue
+                 -- index relative to (as seen from the point of view of) the environment
+                 (indexOne valEnv (ix - lamCnt))
+        Apply fun arg    -> Apply (go lamCnt fun) (go lamCnt arg)
+        Delay term       -> Delay (go lamCnt term)
+        Force term       -> Force (go lamCnt term)
+        _ -> t0
+  in go 0
+
+throwingDischarged
+    :: EvaluationError
+    -> CekValue
+    -> CekM x
+throwingDischarged e tm = throwingWithCause e $ Just (dischargeCekValue tm)
+
+throwingWithCause :: EvaluationError -> Maybe Term -> CekM x
+throwingWithCause e cause = throwError $ ErrorWithCause e cause
 
 data Context
     = FrameApplyFun CekValue Context
@@ -362,16 +363,15 @@ data Context
 runCekM :: ExBudgetMode
         -> EmitterMode
         -> (CekEmitter -> CekBudgetSpender -> CekM a)
-        -> IO (Maybe a, ExRestrictingBudget, [String])
+        -> M (Maybe a, ExRestrictingBudget, [String])
 runCekM getExBudgetInfo getEmitterMode a = do
     exBudgetMode   <- getExBudgetInfo
-    let exBudgetModeSpender       = _exBudgetModeSpender exBudgetMode
-        exBudgetModeGetFinal      = _exBudgetModeGetFinal exBudgetMode
-        exBudgetModeGetCumulative = _exBudgetModeGetCumulative exBudgetMode
+    let exBudgetModeSpender       = getExBudgetModeSpender exBudgetMode
+        exBudgetModeGetFinal      = getExBudgetModeGetFinal exBudgetMode
+        exBudgetModeGetCumulative = getExBudgetModeGetCumulative exBudgetMode
     cekEmitterInfo <- getEmitterMode exBudgetModeGetCumulative
-    let cekEmitterInfoEmit     = _cekEmitterInfoEmit cekEmitterInfo
-        cekEmitterInfoGetFinal = _cekEmitterInfoGetFinal cekEmitterInfo
-        cekEmitter             = cekEmitterInfoEmit
+    let cekEmitter             = getCekEmitterInfoEmit cekEmitterInfo
+        cekEmitterInfoGetFinal = getCekEmitterInfoGetFinal cekEmitterInfo
         cekBudgetSpender       = exBudgetModeSpender
     errOrRes <- tryError $ a cekEmitter cekBudgetSpender
     st <- exBudgetModeGetFinal
@@ -387,6 +387,8 @@ lookupVarName varName varEnv =
         Nothing  -> throwingWithCause (InternalEvaluationError OpenTermEvaluatedMachineError)
                       $ Just (Var varName)
         Just val -> pure val
+
+-- PURECAKE STOP
 
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
 -- 'makeKnown' or a partial builtin application depending on whether the built-in function is
@@ -603,14 +605,11 @@ runCekDeBruijn
     :: ExRestrictingBudget
     -> EmitterMode
     -> Term
-    -> IO (Maybe Term, ExRestrictingBudget, [String])
+    -> M (Maybe Term, ExRestrictingBudget, [String])
 runCekDeBruijn limit emitMode term =
     runCekM (restricting limit) emitMode $ \ cekEmitter cekSpender -> do
         cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
         enterComputeCek cekEmitter cekSpender NoFrame [] term
-
-throwingWithCause :: EvaluationError -> Maybe Term -> CekM x
-throwingWithCause e cause = throwError $ ErrorWithCause e cause
 
 defaultRuntime :: BuiltinsRuntime DefaultFun CekValue
 defaultRuntime bi = case bi of

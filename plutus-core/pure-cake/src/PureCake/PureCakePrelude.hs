@@ -16,3 +16,17 @@ len xs = case xs of
 pure x = Ret x
 
 data Maybe a = Nothing | Just a
+
+maybe n j m = case m of
+  Nothing -> n
+  Just x -> j x
+
+x || y = case x of
+  True -> True
+  False -> y
+
+x >= y = x > y || x == y
+
+f $ x = f x
+
+tryError m = Handle (do { x <- m; pure (Just x) }) (\ x -> pure Nothing)

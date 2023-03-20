@@ -3,7 +3,7 @@ module PureCake.HaskellPrelude
   , Integer
   , String
   , Maybe(..)
-  , IO
+  , M
   , pure
   , len
   , maybe
@@ -24,6 +24,8 @@ module PureCake.HaskellPrelude
 import Control.Monad.Catch (SomeException, catch, throwM)
 import Data.Primitive.PrimArray
 import GHC.Prim
+
+type M = IO
 
 len :: [a] -> Integer
 len = fromIntegral . length
