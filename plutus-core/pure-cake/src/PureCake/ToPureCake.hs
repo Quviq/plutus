@@ -1,21 +1,21 @@
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE KindSignatures  #-}
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE PolyKinds       #-}
-{-# LANGUAGE EmptyCase       #-}
+{-# LANGUAGE EmptyCase      #-}
+{-# LANGUAGE GADTs          #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase     #-}
+{-# LANGUAGE PolyKinds      #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module PureCake.ToPureCake where
 
 import Data.Coerce
-import Data.Text
 import Data.SatInt
+import Data.Text
 
-import PlutusCore.Default                       qualified as PLC
-import PlutusCore.Evaluation.Machine.Exception  qualified as PLC
-import PlutusCore.Evaluation.Machine.ExMemory   qualified as PLC
-import PlutusCore.DeBruijn                      qualified as PLC
-import PlutusCore.Evaluation.Machine.ExBudget   qualified as PLC
-import UntypedPlutusCore.Core                   qualified as PLC
+import PlutusCore.DeBruijn qualified as PLC
+import PlutusCore.Default qualified as PLC
+import PlutusCore.Evaluation.Machine.ExBudget qualified as PLC
+import PlutusCore.Evaluation.Machine.Exception qualified as PLC
+import PlutusCore.Evaluation.Machine.ExMemory qualified as PLC
+import UntypedPlutusCore.Core qualified as PLC
 import UntypedPlutusCore.Evaluation.Machine.Cek qualified as PLC
 
 import PureCake.Implementation qualified as Cake
@@ -88,7 +88,7 @@ constToCake (PLC.Some val) = valToCake val
 
 valToCake :: PLC.ValueOf PLC.DefaultUni a -> Cake.Const
 valToCake (PLC.ValueOf uni a) = case uni of
-  PLC.DefaultUniInteger                         -> Cake.ConstInteger a
+  PLC.DefaultUniInteger                         -> Cake.ConstInteger (fromIntegral a)
   PLC.DefaultUniString                          -> Cake.ConstString $ unpack a
   PLC.DefaultUniBool                            -> Cake.ConstBool a
   PLC.DefaultUniUnit                            -> Cake.ConstUnit
@@ -117,7 +117,6 @@ deriving stock instance Eq Cake.MachineError
 deriving stock instance Eq Cake.EvaluationError
 deriving stock instance Eq Cake.Term
 deriving stock instance Eq Cake.ErrorWithCause
-deriving stock instance Eq Cake.ExRestrictingBudget
 deriving stock instance Eq Cake.ExBudget
 deriving stock instance Eq Cake.Const
 
@@ -128,7 +127,6 @@ deriving stock instance Show Cake.MachineError
 deriving stock instance Show Cake.EvaluationError
 deriving stock instance Show Cake.Term
 deriving stock instance Show Cake.ErrorWithCause
-deriving stock instance Show Cake.ExRestrictingBudget
 deriving stock instance Show Cake.ExBudget
 deriving stock instance Show Cake.Const
 deriving stock instance Show Cake.NamedDeBruijn

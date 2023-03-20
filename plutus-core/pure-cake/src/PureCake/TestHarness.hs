@@ -30,7 +30,7 @@ import PlutusIR.Compiler
 import UntypedPlutusCore.DeBruijn qualified as PLC
 
 noEmitter :: Cake.EmitterMode
-noEmitter = Cake.EmitterMode $ \_ -> pure $ Cake.CekEmitterInfo (\_ -> pure ()) (pure mempty)
+noEmitter _ = pure $ Cake.CekEmitterInfo (\_ -> pure ()) (pure mempty)
 
 logEmitter :: Cake.EmitterMode
 logEmitter = error "TODO"
