@@ -30,3 +30,7 @@ x >= y = x > y || x == y
 f $ x = f x
 
 tryError m = Handle (do { x <- m; pure (Just x) }) (\ x -> pure Nothing)
+
+newArray i = Alloc i 0
+readArray arr i = Deref arr i
+writeArray arr i v = Update arr i v

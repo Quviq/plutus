@@ -388,7 +388,30 @@ lookupVarName varName varEnv =
                       $ Just (Var varName)
         Just val -> pure val
 
--- PURECAKE STOP
+defaultRuntime :: BuiltinsRuntime DefaultFun CekValue
+defaultRuntime bi =
+  let failure = BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError) in
+  case bi of
+  -- TODO: the budget here is liable to change once the tests start failing
+  -- Also, I have no clue if this is actually right or if we need to use the
+  -- other constructors from CekValue as well here??
+    AddInteger ->
+      BuiltinExpectArgument (\ c ->
+        case c of
+          VCon con ->
+            case con of
+              ConstInteger i ->
+                BuiltinExpectArgument (\ c' ->
+                  case c' of
+                    VCon con' ->
+                      case con' of
+                        ConstInteger j -> BuiltinResult (ExBudget 0 0) (MakeKnownSuccess (VCon (ConstInteger (i + j))))
+                        _ -> failure
+                    _ -> failure
+                )
+              _ -> failure
+          _ -> failure
+      )
 
 -- | Take pieces of a possibly partial builtin application and either create a 'CekValue' using
 -- 'makeKnown' or a partial builtin application depending on whether the built-in function is
@@ -436,40 +459,41 @@ enterComputeCek cekEmitter cekSpender =
           -> [CekValue]
           -> Term
           -> CekM Term
-      computeCek unbudgetedSteps ctx env tm = case tm of
-        -- s ; ρ ▻ {L A}  ↦ s , {_ A} ; ρ ▻ L
-        Var varName -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BVar unbudgetedSteps
-            val <- lookupVarName varName env
-            returnCek unbudgetedSteps' ctx val
-        Constant val -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BConst unbudgetedSteps
-            returnCek unbudgetedSteps' ctx (VCon val)
-        LamAbs name body -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BLamAbs unbudgetedSteps
-            returnCek unbudgetedSteps' ctx (VLamAbs name body env)
-        Delay body -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BDelay unbudgetedSteps
-            returnCek unbudgetedSteps' ctx (VDelay body env)
-        -- s ; ρ ▻ lam x L  ↦  s ◅ lam x (L , ρ)
-        Force body -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BForce unbudgetedSteps
-            computeCek unbudgetedSteps' (FrameForce ctx) env body
-        -- s ; ρ ▻ [L M]  ↦  s , [_ (M,ρ)]  ; ρ ▻ L
-        Apply fun arg -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BApply unbudgetedSteps
-            computeCek unbudgetedSteps' (FrameApplyArg env arg ctx) env fun
-        -- s ; ρ ▻ abs α L  ↦  s ◅ abs α (L , ρ)
-        -- s ; ρ ▻ con c  ↦  s ◅ con c
-        -- s ; ρ ▻ builtin bn  ↦  s ◅ builtin bn arity arity [] [] ρ
-        Builtin bn -> do
-            unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
-            let meaning = defaultRuntime bn
-            -- 'Builtin' is fully discharged.
-            returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin bn) meaning)
-        -- s ; ρ ▻ error A  ↦  <> A
-        Error ->
-            throwingWithCause (UserEvaluationError CekEvaluationFailure) Nothing
+      computeCek unbudgetedSteps ctx env tm =
+        case tm of
+          -- s ; ρ ▻ {L A}  ↦ s , {_ A} ; ρ ▻ L
+          Var varName -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BVar unbudgetedSteps
+              val <- lookupVarName varName env
+              returnCek unbudgetedSteps' ctx val
+          Constant val -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BConst unbudgetedSteps
+              returnCek unbudgetedSteps' ctx (VCon val)
+          LamAbs name body -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BLamAbs unbudgetedSteps
+              returnCek unbudgetedSteps' ctx (VLamAbs name body env)
+          Delay body -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BDelay unbudgetedSteps
+              returnCek unbudgetedSteps' ctx (VDelay body env)
+          -- s ; ρ ▻ lam x L  ↦  s ◅ lam x (L , ρ)
+          Force body -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BForce unbudgetedSteps
+              computeCek unbudgetedSteps' (FrameForce ctx) env body
+          -- s ; ρ ▻ [L M]  ↦  s , [_ (M,ρ)]  ; ρ ▻ L
+          Apply fun arg -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BApply unbudgetedSteps
+              computeCek unbudgetedSteps' (FrameApplyArg env arg ctx) env fun
+          -- s ; ρ ▻ abs α L  ↦  s ◅ abs α (L , ρ)
+          -- s ; ρ ▻ con c  ↦  s ◅ con c
+          -- s ; ρ ▻ builtin bn  ↦  s ◅ builtin bn arity arity [] [] ρ
+          Builtin bn -> do
+              unbudgetedSteps' <- stepAndMaybeSpend BBuiltin unbudgetedSteps
+              let meaning = defaultRuntime bn
+              -- 'Builtin' is fully discharged.
+              returnCek unbudgetedSteps' ctx (VBuiltin bn (Builtin bn) meaning)
+          -- s ; ρ ▻ error A  ↦  <> A
+          Error ->
+              throwingWithCause (UserEvaluationError CekEvaluationFailure) Nothing
 
       {- | The returning phase of the CEK machine.
       Returns 'EvaluationSuccess' in case the context is empty, otherwise pops up one frame
@@ -485,21 +509,16 @@ enterComputeCek cekEmitter cekSpender =
           -> Context
           -> CekValue
           -> CekM Term
-      returnCek unbudgetedSteps frame val = case frame of
-        --- Instantiate all the free variable of the resulting term in case there are any.
-        -- . ◅ V           ↦  [] V
-        NoFrame -> do
-            spendAccumulatedBudget unbudgetedSteps
-            pure $ dischargeCekValue val
-        -- s , {_ A} ◅ abs α M  ↦  s ; ρ ▻ M [ α / A ]*
-        FrameForce ctx -> forceEvaluate unbudgetedSteps ctx val
-        -- s , [_ (M,ρ)] ◅ V  ↦  s , [V _] ; ρ ▻ M
-        FrameApplyArg argVarEnv arg ctx ->
-            computeCek unbudgetedSteps (FrameApplyFun val ctx) argVarEnv arg
-        -- s , [(lam x (M,ρ)) _] ◅ V  ↦  s ; ρ [ x  ↦  V ] ▻ M
-        -- FIXME: add rule for VBuiltin once it's in the specification.
-        FrameApplyFun fun ctx ->
-            applyEvaluate unbudgetedSteps ctx fun val
+      returnCek unbudgetedSteps frame val =
+        case frame of
+          NoFrame -> do
+              spendAccumulatedBudget unbudgetedSteps
+              pure (dischargeCekValue val)
+          FrameForce ctx -> forceEvaluate unbudgetedSteps ctx val
+          FrameApplyArg argVarEnv arg ctx ->
+              computeCek unbudgetedSteps (FrameApplyFun val ctx) argVarEnv arg
+          FrameApplyFun fun ctx ->
+              applyEvaluate unbudgetedSteps ctx fun val
 
       -- | @force@ a term and proceed.
       -- If v is a delay then compute the body of v;
@@ -545,27 +564,28 @@ enterComputeCek cekEmitter cekSpender =
           -> CekValue -- lhs of application
           -> CekValue -- rhs of application
           -> CekM Term
-      applyEvaluate unbudgetedSteps ctx val arg = case val of
-        VLamAbs _ body env ->
-            computeCek unbudgetedSteps ctx (arg:env) body
-        -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
-        -- 'VCon'. After that the bangs here were making things a tiny bit slower and so we removed them.
-        VBuiltin fun term runtime -> do
-            let argTerm = dischargeCekValue arg
-                -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
-                -- in a 'VBuiltin'.
-                term' = Apply term argTerm
-            case runtime of
-                -- It's only possible to apply a builtin application if the builtin expects a term
-                -- argument next.
-                BuiltinExpectArgument f -> do
-                    res <- evalBuiltinApp cekEmitter cekSpender fun term' $ f arg
-                    returnCek unbudgetedSteps ctx res
-                _ ->
-                    throwingWithCause (InternalEvaluationError UnexpectedBuiltinTermArgumentMachineError)
-                                      (Just term')
-        _ ->
-            throwingDischarged (InternalEvaluationError NonFunctionalApplicationMachineError) val
+      applyEvaluate unbudgetedSteps ctx val arg =
+        case val of
+          VLamAbs name body env ->
+              computeCek unbudgetedSteps ctx (arg:env) body
+          -- Annotating @f@ and @exF@ with bangs gave us some speed-up, but only until we added a bang to
+          -- 'VCon'. After that the bangs here were making things a tiny bit slower and so we removed them.
+          VBuiltin fun term runtime -> do
+              let argTerm = dischargeCekValue arg
+                  -- @term@ and @argTerm@ are fully discharged, and so @term'@ is, hence we can put it
+                  -- in a 'VBuiltin'.
+                  term' = Apply term argTerm
+              case runtime of
+                  -- It's only possible to apply a builtin application if the builtin expects a term
+                  -- argument next.
+                  BuiltinExpectArgument f -> do
+                      res <- evalBuiltinApp cekEmitter cekSpender fun term' (f arg)
+                      returnCek unbudgetedSteps ctx res
+                  _ ->
+                      throwingWithCause (InternalEvaluationError UnexpectedBuiltinTermArgumentMachineError)
+                                        (Just term')
+          _ ->
+              throwingDischarged (InternalEvaluationError NonFunctionalApplicationMachineError) val
 
       -- | Spend the budget that has been accumulated for a number of machine steps.
       spendAccumulatedBudget :: WordArray -> CekM ()
@@ -576,8 +596,8 @@ enterComputeCek cekEmitter cekSpender =
       -- Skip index 7, that's the total counter
       -- See Note [Structure of the step counter]
       {-# INLINE spend #-}
-      spend 7 _ = pure ()
       spend i w =
+        if i == 7 then pure () else
         let kind = toEnumStepKind i in
         cekSpender (BStep kind)
                    (stimesExBudget w (cekStepCost defaultCekMachineCosts kind))
@@ -589,7 +609,7 @@ enterComputeCek cekEmitter cekSpender =
           -- This generates let-expressions in GHC Core, however all of them bind unboxed things and
           -- so they don't survive further compilation, see https://stackoverflow.com/a/14090277
           let ix = fromEnumStepKind kind
-              unbudgetedSteps' = overIndex 7 (\ x -> x + 1) $ overIndex ix (\ x -> x + 1) unbudgetedSteps
+              unbudgetedSteps' = overIndex 7 (\ x -> x + 1) (overIndex ix (\ x -> x + 1) unbudgetedSteps)
               unbudgetedStepsTotal = readWordArray unbudgetedSteps' 7
           -- There's no risk of overflow here, since we only ever increment the total
           -- steps by 1 and then check this condition.
@@ -607,23 +627,9 @@ runCekDeBruijn
     -> Term
     -> M (Maybe Term, ExRestrictingBudget, [String])
 runCekDeBruijn limit emitMode term =
-    runCekM (restricting limit) emitMode $ \ cekEmitter cekSpender -> do
+    runCekM (restricting limit) emitMode (\ cekEmitter cekSpender -> do
         cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
-        enterComputeCek cekEmitter cekSpender NoFrame [] term
-
-defaultRuntime :: BuiltinsRuntime DefaultFun CekValue
-defaultRuntime bi = case bi of
-  -- TODO: the budget here is liable to change once the tests start failing
-  -- Also, I have no clue if this is actually right or if we need to use the
-  -- other constructors from CekValue as well here??
-  AddInteger ->
-    BuiltinExpectArgument $ \ c -> case c of
-      VCon (ConstInteger i) ->
-        BuiltinExpectArgument $ \ c' -> case c' of
-          VCon (ConstInteger j) ->
-            BuiltinResult (ExBudget 0 0) (MakeKnownSuccess (VCon $ ConstInteger $ i + j))
-          _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)
-      _ -> BuiltinResult (ExBudget 0 0) (MakeKnownFailure [] BuiltinTermArgumentExpectedMachineError)
+        enterComputeCek cekEmitter cekSpender NoFrame [] term)
 
 -- | For execution, to avoid overruns.
 restricting :: ExRestrictingBudget -> ExBudgetMode
@@ -645,7 +651,7 @@ restricting initB = case initB of
       writeCpu cpuInit
       writeMem memInit
       let
-          spend _ b = case b of
+          spend w b = case b of
             ExBudget cpuToSpend memToSpend -> do
               cpuLeft <- readCpu
               memLeft <- readMem
@@ -655,21 +661,21 @@ restricting initB = case initB of
               -- what the final state was.
               writeCpu cpuLeft'
               writeMem memLeft'
-              if (cpuLeft' < 0 || memLeft' < 0)
-              then do
-                  let budgetLeft = ExBudget cpuLeft' memLeft'
-                  throwingWithCause
-                      (UserEvaluationError $ CekOutOfExError budgetLeft)
-                      Nothing
-              else pure ()
-          spender = spend
+              if (cpuLeft' < 0) || (memLeft' < 0)
+                then do
+                    let budgetLeft = ExBudget cpuLeft' memLeft'
+                    throwingWithCause
+                        (UserEvaluationError (CekOutOfExError budgetLeft))
+                        Nothing
+                else pure ()
           remaining = do
             cpu <- readCpu
             mem <- readMem
             pure (ExBudget cpu mem)
           cumulative = do
               r <- remaining
-              pure $ initB `minusExBudget` r
+              pure (minusExBudget initB r)
           final = remaining
-      pure $ ExBudgetInfo spender final cumulative
+      pure (ExBudgetInfo spend final cumulative)
 
+-- PURECAKE STOP
