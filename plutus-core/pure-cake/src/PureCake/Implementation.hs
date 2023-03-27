@@ -27,18 +27,18 @@ type CekBudgetSpender = ExBudgetCategory -> ExBudget -> CekM ()
 -- We make a separate data type here just to save the caller of the CEK machine from those pesky
 -- 'ST'-related details.
 -- | A budgeting mode to execute the CEK machine in.
-type ExBudgetMode = M ExBudgetInfo
+type ExBudgetMode = IO ExBudgetInfo
 
 type CekEmitter = [String] -> CekM ()
 
 -- | An emitting mode to execute the CEK machine in, similar to 'ExBudgetMode'.
-type EmitterMode = M ExBudget -> M CekEmitterInfo
+type EmitterMode = IO ExBudget -> IO CekEmitterInfo
 
-type CekM = M
+type CekM = IO
 
 -- PURECAKE START
 
-main :: M ()
+main :: IO ()
 main = pure ()
 
 -- TODO: this is a bit of an approximation!
@@ -262,15 +262,15 @@ data DefaultFun = AddInteger
 -- | Runtime budgeting info.
 data ExBudgetInfo =
   ExBudgetInfo
-    (ExBudgetCategory -> ExBudget -> M ())         -- ^ A spending function.
-    (M ExBudget) -- ^ For accessing the final state.
-    (M ExBudget)            -- ^ For accessing the cumulative budget.
+    (ExBudgetCategory -> ExBudget -> IO ())         -- ^ A spending function.
+    (IO ExBudget) -- ^ For accessing the final state.
+    (IO ExBudget)            -- ^ For accessing the cumulative budget.
 
 getExBudgetModeSpender :: ExBudgetInfo -> CekBudgetSpender
 getExBudgetModeSpender x = case x of ExBudgetInfo a b c -> a
-getExBudgetModeGetFinal :: ExBudgetInfo -> M ExRestrictingBudget
+getExBudgetModeGetFinal :: ExBudgetInfo -> IO ExRestrictingBudget
 getExBudgetModeGetFinal x = case x of ExBudgetInfo a b c -> b
-getExBudgetModeGetCumulative :: ExBudgetInfo -> M ExBudget
+getExBudgetModeGetCumulative :: ExBudgetInfo -> IO ExBudget
 getExBudgetModeGetCumulative x = case x of ExBudgetInfo a b c -> c
 
 -- See Note [Cost slippage]
@@ -279,11 +279,11 @@ defaultSlippage :: Integer
 defaultSlippage = 200
 
 -- | Runtime emitter info, similar to 'ExBudgetInfo'.
-data CekEmitterInfo = CekEmitterInfo ([String] -> M ()) (M [String])
+data CekEmitterInfo = CekEmitterInfo ([String] -> IO ()) (IO [String])
 
-getCekEmitterInfoEmit :: CekEmitterInfo -> [String] -> M ()
+getCekEmitterInfoEmit :: CekEmitterInfo -> [String] -> IO ()
 getCekEmitterInfoEmit i = case i of CekEmitterInfo a b -> a
-getCekEmitterInfoGetFinal :: CekEmitterInfo -> M [String]
+getCekEmitterInfoGetFinal :: CekEmitterInfo -> IO [String]
 getCekEmitterInfoGetFinal i = case i of CekEmitterInfo a b -> b
 
 deBruijnIndex :: NamedDeBruijn -> Integer
@@ -363,7 +363,7 @@ data Context
 runCekM :: ExBudgetMode
         -> EmitterMode
         -> (CekEmitter -> CekBudgetSpender -> CekM a)
-        -> M (Maybe a, ExRestrictingBudget, [String])
+        -> IO (Maybe a, ExRestrictingBudget, [String])
 runCekM getExBudgetInfo getEmitterMode a = do
     exBudgetMode   <- getExBudgetInfo
     let exBudgetModeSpender       = getExBudgetModeSpender exBudgetMode
@@ -625,7 +625,7 @@ runCekDeBruijn
     :: ExRestrictingBudget
     -> EmitterMode
     -> Term
-    -> M (Maybe Term, ExRestrictingBudget, [String])
+    -> IO (Maybe Term, ExRestrictingBudget, [String])
 runCekDeBruijn limit emitMode term =
     runCekM (restricting limit) emitMode (\ cekEmitter cekSpender -> do
         cekSpender BStartup (cekStartupCost defaultCekMachineCosts)
