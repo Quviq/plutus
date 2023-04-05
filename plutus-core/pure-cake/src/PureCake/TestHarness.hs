@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns     #-}
 {-# LANGUAGE GADTs #-}
-
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 module PureCake.TestHarness where
 
 import Control.Lens
@@ -63,7 +63,7 @@ noUnicode tm = case tm of
 
 noUnicodeConst :: Cake.Const -> Cake.Const
 noUnicodeConst c = case c of
-  Cake.ConstString s -> Cake.ConstString $ filter (\ c -> c >= toEnum 31 && c < toEnum 128) s
+  Cake.ConstString s -> Cake.ConstString $ filter (\ ch -> ch >= toEnum 31 && ch < toEnum 128) s
   Cake.ConstPair a b -> Cake.ConstPair (noUnicodeConst a) (noUnicodeConst b)
   Cake.ConstList xs  -> Cake.ConstList $ map noUnicodeConst xs
   _ -> c
@@ -75,6 +75,7 @@ runCake = runCake' . termToCake
 runCake' :: Cake.Term -> IO (Maybe Cake.Term, Cake.ExRestrictingBudget, [String])
 runCake' = Cake.runCekDeBruijn (exRestrictingBudgetToCake testBudget)
                                noEmitter
+
 compileTm tm =
   let etm' = runExcept $ do
         tcConfig <- PLC.getDefTypeCheckConfig noProvenance
