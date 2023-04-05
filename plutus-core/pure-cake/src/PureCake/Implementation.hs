@@ -38,9 +38,6 @@ type CekM = IO
 
 -- PURECAKE START
 
-main :: IO ()
-main = pure ()
-
 -- TODO: this is a bit of an approximation!
 throwError :: ErrorWithCause -> CekM a
 throwError e = raise

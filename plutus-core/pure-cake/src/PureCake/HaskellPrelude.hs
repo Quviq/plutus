@@ -18,6 +18,7 @@ module PureCake.HaskellPrelude
   , newArray
   , readArray
   , writeArray
+  , eqString
   )
   where
 
@@ -45,3 +46,6 @@ readArray arr i = fromIntegral <$> readPrimArray arr (fromIntegral i)
 
 writeArray :: MutablePrimArray RealWorld Int -> Integer -> Integer -> IO ()
 writeArray arr i v = writePrimArray arr (fromIntegral i) (fromIntegral v)
+
+eqString :: String -> String -> Bool
+eqString = (==)

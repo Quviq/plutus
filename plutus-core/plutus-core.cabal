@@ -360,6 +360,7 @@ library purecake
     PureCake.TestHarness
   other-modules:
     PureCake.Implementation
+    PureCake.PureCakeTestHarness
     PureCake.HaskellPrelude
     PureCake.ToPureCake
 
